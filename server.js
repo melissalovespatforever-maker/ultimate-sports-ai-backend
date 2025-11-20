@@ -10,21 +10,20 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const http = require('http');
 const { Server } = require('socket.io');
-require('dotenv').config();
+require('dotenv').config();  
+const authRoutes = require('./auth');
+const userRoutes = require('./users');
+const picksRoutes = require('./picks');
+const socialRoutes = require('./social');
+const achievementsRoutes = require('./achievements');
+const challengesRoutes = require('./challenges');
+const shopRoutes = require('./shop');
+const analyticsRoutes = require('./analytics');
+const oddsRoutes = require('./odds');
 
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const picksRoutes = require('./routes/picks');
-const socialRoutes = require('./routes/social');
-const achievementsRoutes = require('./routes/achievements');
-const challengesRoutes = require('./routes/challenges');
-const shopRoutes = require('./routes/shop');
-const analyticsRoutes = require('./routes/analytics');
-const oddsRoutes = require('./routes/odds');
-
-const { authenticateToken } = require('./middleware/auth');
-const { errorHandler } = require('./middleware/errorHandler');
-const { setupWebSocket } = require('./websocket/handler');
+const { authenticateToken } = require('./auth');
+const { errorHandler } = require('./errorHandler');
+const { setupWebSocket } = require('./handler');
 
 // Initialize Express app
 const app = express();
