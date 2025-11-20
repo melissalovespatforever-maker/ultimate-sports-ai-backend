@@ -10,7 +10,8 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const http = require('http');
 const { Server } = require('socket.io');
-require('dotenv').config();  
+require('dotenv').config();
+
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const picksRoutes = require('./routes/picks');
@@ -87,6 +88,33 @@ app.get('/health', (req, res) => {
     });
 });
 
+// ⚡ Database initialization endpoint
+app.get('/api/admin/init-database', async (req, res) => {
+    try {
+        const { query } = require('./config/database');
+        const fs = require('fs');
+        const path = require('path');
+        
+        // Read and execute schema.sql
+        const schemaSQL = fs.readFileSync(path.join(__dirname, 'database', 'schema.sql'), 'utf8');
+        await query(schemaSQL);
+        
+        // Read and execute seed.sql
+        const seedSQL = fs.readFileSync(path.join(__dirname, 'database', 'seed.sql'), 'utf8');
+        await query(seedSQL);
+        
+        res.json({ 
+            success: true, 
+            message: 'Database initialized with 18 tables and seed data!' 
+        });
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', authenticateToken, userRoutes);
@@ -96,7 +124,7 @@ app.use('/api/achievements', authenticateToken, achievementsRoutes);
 app.use('/api/challenges', authenticateToken, challengesRoutes);
 app.use('/api/shop', authenticateToken, shopRoutes);
 app.use('/api/analytics', authenticateToken, analyticsRoutes);
-app.use('/api/odds', oddsRoutes); // Public route for odds data
+app.use('/api/odds', oddsRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -150,4 +178,3 @@ process.on('SIGINT', () => {
 });
 
 module.exports = { app, server, io };
-
