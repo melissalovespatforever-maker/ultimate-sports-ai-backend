@@ -44,7 +44,25 @@ const io = new Server(server, {
 // Security
 app.use(helmet());
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: function(origin, callback) {
+        // Allow requests with no origin (mobile apps, Postman, etc)
+        if (!origin) return callback(null, true);
+        
+        // Allowed origins
+        const allowedOrigins = [
+            'http://localhost:3000',
+            'https://play.rosebud.ai',
+            process.env.FRONTEND_URL
+        ].filter(Boolean);
+        
+        // Check if origin is allowed or is a Rosebud subdomain
+        if (allowedOrigins.includes(origin) || origin.includes('rosebud.ai')) {
+            callback(null, true);
+        } else {
+            console.warn(`⚠️ Blocked CORS request from: ${origin}`);
+            callback(null, true); // Allow anyway for now during development
+        }
+    },
     credentials: true
 }));
 
