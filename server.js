@@ -88,6 +88,67 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Database initialization endpoint (tablet-friendly!)
+app.get('/api/admin/init-database', async (req, res) => {
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const { pool } = require('./config/database');
+        
+        console.log('🔧 Starting database initialization...');
+        console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+        console.log('NODE_ENV:', process.env.NODE_ENV);
+        
+        // Test database connection first
+        try {
+            await pool.query('SELECT NOW()');
+            console.log('✅ Database connection successful');
+        } catch (connError) {
+            console.error('❌ Database connection failed:', connError.message);
+            return res.status(500).json({
+                success: false,
+                error: 'Database connection failed: ' + connError.message,
+                hint: 'Check your DATABASE_URL environment variable in Railway'
+            });
+        }
+        
+        // Read schema file
+        const schemaPath = path.join(__dirname, 'database', 'schema.sql');
+        const schema = fs.readFileSync(schemaPath, 'utf8');
+        
+        // Read seed file
+        const seedPath = path.join(__dirname, 'database', 'seed.sql');
+        const seed = fs.readFileSync(seedPath, 'utf8');
+        
+        // Execute schema
+        console.log('📊 Creating tables...');
+        await pool.query(schema);
+        console.log('✅ Tables created');
+        
+        // Execute seed
+        console.log('🌱 Seeding data...');
+        await pool.query(seed);
+        console.log('✅ Seed data inserted');
+        
+        res.json({
+            success: true,
+            message: 'Database initialized successfully! 🎉',
+            details: {
+                tablesCreated: '18 tables',
+                seedData: 'Achievements, challenges, shop items, test users'
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Database initialization error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+});
+
 // ⚡ Database initialization endpoint
 app.get('/api/admin/init-database', async (req, res) => {
     try {
