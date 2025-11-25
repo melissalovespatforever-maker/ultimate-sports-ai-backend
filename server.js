@@ -12,33 +12,33 @@ const http = require('http');
 const { Server } = require('socket.io');
 require('dotenv').config();
 
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const picksRoutes = require('./routes/picks');
-const socialRoutes = require('./routes/social');
-const achievementsRoutes = require('./routes/achievements');
-const challengesRoutes = require('./routes/challenges');
-const shopRoutes = require('./routes/shop');
-const analyticsRoutes = require('./routes/analytics');
-const oddsRoutes = require('./routes/odds');
-const stripeRoutes = require('./routes/stripe');
-const referralRoutes = require('./routes/referrals');
-const badgeRoutes = require('./routes/badges');
-const leaderboardRoutes = require('./routes/leaderboards');
+// Load routes with error handling
+let authRoutes, userRoutes, picksRoutes, socialRoutes, achievementsRoutes, 
+    challengesRoutes, shopRoutes, analyticsRoutes, oddsRoutes, stripeRoutes, 
+    referralRoutes, badgeRoutes, leaderboardRoutes;
+
+try {
+    authRoutes = require('./routes/auth');
+    userRoutes = require('./routes/users');
+    picksRoutes = require('./routes/picks');
+    socialRoutes = require('./routes/social');
+    achievementsRoutes = require('./routes/achievements');
+    challengesRoutes = require('./routes/challenges');
+    shopRoutes = require('./routes/shop');
+    analyticsRoutes = require('./routes/analytics');
+    oddsRoutes = require('./routes/odds');
+    stripeRoutes = require('./routes/stripe');
+    referralRoutes = require('./routes/referrals');
+    badgeRoutes = require('./routes/badges');
+    leaderboardRoutes = require('./routes/leaderboards');
+} catch (error) {
+    console.error('❌ Error loading routes:', error.message);
+    process.exit(1);
+}
 
 const { authenticateToken } = require('./middleware/auth');
 const { errorHandler } = require('./middleware/errorHandler');
 const { setupWebSocket } = require('./websocket/handler');
-
-// Initialize Express app
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-    cors: {
-        origin: function(origin, callback) {
-            // Allow all Rosebud domains and localhost
-            if (!origin || origin.includes('rosebud.ai') || origin.includes('localhost')) {
-                callback(null, true);
             } else {
                 callback(null, true); // Allow anyway for development
             }
