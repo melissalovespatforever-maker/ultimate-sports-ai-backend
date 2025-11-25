@@ -50,13 +50,14 @@ app.use(cors({
         
         // Allowed origins
         const allowedOrigins = [
-            'http://localhost:3000',
-            'https://play.rosebud.ai',
-            process.env.FRONTEND_URL
-        ].filter(Boolean);
+    'http://localhost:3000',
+    'https://play.rosebud.ai',
+    'https://ultimate-sports-frontend.vercel.app',
+    process.env.FRONTEND_URL
+].filter(Boolean);
         
         // Check if origin is allowed or is a Rosebud subdomain
-        if (allowedOrigins.includes(origin) || origin.includes('rosebud.ai')) {
+    if (allowedOrigins.includes(origin) || origin.includes('rosebud.ai') || origin.includes('vercel.app')) {
             callback(null, true);
         } else {
             console.warn(`⚠️ Blocked CORS request from: ${origin}`);
