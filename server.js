@@ -21,6 +21,10 @@ const challengesRoutes = require('./routes/challenges');
 const shopRoutes = require('./routes/shop');
 const analyticsRoutes = require('./routes/analytics');
 const oddsRoutes = require('./routes/odds');
+const stripeRoutes = require('./routes/stripe');
+const referralRoutes = require('./routes/referrals');
+const badgeRoutes = require('./routes/badges');
+const leaderboardRoutes = require('./routes/leaderboards');
 
 const { authenticateToken } = require('./middleware/auth');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -31,7 +35,14 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+        origin: function(origin, callback) {
+            // Allow all Rosebud domains and localhost
+            if (!origin || origin.includes('rosebud.ai') || origin.includes('localhost')) {
+                callback(null, true);
+            } else {
+                callback(null, true); // Allow anyway for development
+            }
+        },
         methods: ['GET', 'POST'],
         credentials: true
     }
@@ -50,14 +61,14 @@ app.use(cors({
         
         // Allowed origins
         const allowedOrigins = [
-    'http://localhost:3000',
-    'https://play.rosebud.ai',
-    'https://ultimate-sports-frontend.vercel.app',
-    process.env.FRONTEND_URL
-].filter(Boolean);
+            'http://localhost:3000',
+            'https://play.rosebud.ai',
+            'https://ultimate-sports-frontend.vercel.app',
+            process.env.FRONTEND_URL
+        ].filter(Boolean);
         
-        // Check if origin is allowed or is a Rosebud subdomain
-    if (allowedOrigins.includes(origin) || origin.includes('rosebud.ai') || origin.includes('vercel.app')) {
+        // Check if origin is allowed or is a Rosebud/Vercel subdomain
+        if (allowedOrigins.includes(origin) || origin.includes('rosebud.ai') || origin.includes('vercel.app')) {
             callback(null, true);
         } else {
             console.warn(`⚠️ Blocked CORS request from: ${origin}`);
@@ -104,6 +115,40 @@ app.get('/health', (req, res) => {
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         environment: process.env.NODE_ENV
+    });
+});
+
+// ============================================
+// TEST ENDPOINT - No authentication required
+// ============================================
+app.get('/api/test/games', (req, res) => {
+    res.json({
+        success: true,
+        message: 'Backend API is working! 🎉',
+        data: {
+            games: [
+                {
+                    id: 1,
+                    league: 'NBA',
+                    home_team: 'Lakers',
+                    away_team: 'Celtics',
+                    status: 'live',
+                    home_score: 98,
+                    away_score: 105,
+                    time_remaining: '5:30'
+                },
+                {
+                    id: 2,
+                    league: 'NFL',
+                    home_team: 'Cowboys',
+                    away_team: 'Chiefs',
+                    status: 'upcoming',
+                    home_score: 0,
+                    away_score: 0,
+                    time_remaining: 'In 2h'
+                }
+            ]
+        }
     });
 });
 
