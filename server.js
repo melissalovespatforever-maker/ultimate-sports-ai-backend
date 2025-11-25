@@ -12,33 +12,29 @@ const http = require('http');
 const { Server } = require('socket.io');
 require('dotenv').config();
 
-// Load routes with error handling
-let authRoutes, userRoutes, picksRoutes, socialRoutes, achievementsRoutes, 
-    challengesRoutes, shopRoutes, analyticsRoutes, oddsRoutes, stripeRoutes, 
-    referralRoutes, badgeRoutes, leaderboardRoutes;
-
-try {
-    authRoutes = require('./routes/auth');
-    userRoutes = require('./routes/users');
-    picksRoutes = require('./routes/picks');
-    socialRoutes = require('./routes/social');
-    achievementsRoutes = require('./routes/achievements');
-    challengesRoutes = require('./routes/challenges');
-    shopRoutes = require('./routes/shop');
-    analyticsRoutes = require('./routes/analytics');
-    oddsRoutes = require('./routes/odds');
-    stripeRoutes = require('./routes/stripe');
-    referralRoutes = require('./routes/referrals');
-    badgeRoutes = require('./routes/badges');
-    leaderboardRoutes = require('./routes/leaderboards');
-} catch (error) {
-    console.error('❌ Error loading routes:', error.message);
-    process.exit(1);
-}
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/users');
+const picksRoutes = require('./routes/picks');
+const socialRoutes = require('./routes/social');
+const achievementsRoutes = require('./routes/achievements');
+const challengesRoutes = require('./routes/challenges');
+const shopRoutes = require('./routes/shop');
+const analyticsRoutes = require('./routes/analytics');
+const oddsRoutes = require('./routes/odds');
 
 const { authenticateToken } = require('./middleware/auth');
 const { errorHandler } = require('./middleware/errorHandler');
 const { setupWebSocket } = require('./websocket/handler');
+
+// Initialize Express app
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: function(origin, callback) {
+            // Allow all Rosebud domains and localhost
+            if (!origin || origin.includes('rosebud.ai') || origin.includes('localhost')) {
+                callback(null, true);
             } else {
                 callback(null, true); // Allow anyway for development
             }
@@ -152,7 +148,7 @@ app.get('/api/test/games', (req, res) => {
     });
 });
 
-// Database initialization endpoint (tablet-friendly!)
+// Database initialization endpoint
 app.get('/api/admin/init-database', async (req, res) => {
     try {
         const fs = require('fs');
@@ -213,34 +209,10 @@ app.get('/api/admin/init-database', async (req, res) => {
     }
 });
 
-// ⚡ Database initialization endpoint
-app.get('/api/admin/init-database', async (req, res) => {
-    try {
-        const { query } = require('./config/database');
-        const fs = require('fs');
-        const path = require('path');
-        
-        // Read and execute schema.sql
-        const schemaSQL = fs.readFileSync(path.join(__dirname, 'database', 'schema.sql'), 'utf8');
-        await query(schemaSQL);
-        
-        // Read and execute seed.sql
-        const seedSQL = fs.readFileSync(path.join(__dirname, 'database', 'seed.sql'), 'utf8');
-        await query(seedSQL);
-        
-        res.json({ 
-            success: true, 
-            message: 'Database initialized with 18 tables and seed data!' 
-        });
-    } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
-        });
-    }
-});
+// ============================================
+// API ROUTES
+// ============================================
 
-// API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/picks', authenticateToken, picksRoutes);
@@ -249,7 +221,7 @@ app.use('/api/achievements', authenticateToken, achievementsRoutes);
 app.use('/api/challenges', authenticateToken, challengesRoutes);
 app.use('/api/shop', authenticateToken, shopRoutes);
 app.use('/api/analytics', authenticateToken, analyticsRoutes);
-app.use('/api/odds', oddsRoutes);
+app.use('/api/odds', oddsRoutes); // Public route for odds data
 
 // 404 handler
 app.use((req, res) => {
