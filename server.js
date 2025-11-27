@@ -110,7 +110,19 @@ app.get('/health', (req, res) => {
         status: 'healthy',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
-        environment: process.env.NODE_ENV
+        environment: process.env.NODE_ENV,
+        oddsApiConfigured: !!process.env.THE_ODDS_API_KEY
+    });
+});
+
+// Debug endpoint for testing API configuration
+app.get('/api/debug/config', (req, res) => {
+    res.json({
+        environment: process.env.NODE_ENV,
+        nodeVersion: process.version,
+        oddsApiConfigured: !!process.env.THE_ODDS_API_KEY,
+        oddsApiKeyPreview: process.env.THE_ODDS_API_KEY ? `${process.env.THE_ODDS_API_KEY.substring(0, 10)}...` : 'NOT SET',
+        timestamp: new Date().toISOString()
     });
 });
 
