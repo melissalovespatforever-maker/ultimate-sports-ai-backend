@@ -4,8 +4,37 @@
 // ============================================
 
 const jwt = require('jsonwebtoken');
+const OddsHandler = require('./odds-handler');
+const MatchesHandler = require('./matches-handler');
+const ScoresHandler = require('./scores-handler');
+const { setupCompetitionsWebSocket } = require('./competitions-handler');
 
 const setupWebSocket = (io) => {
+    const oddsHandler = new OddsHandler(io);
+    const matchesHandler = new MatchesHandler(io);
+    const scoresHandler = new ScoresHandler(io);
+    
+    // Setup competitions namespace (Phase 18)
+    setupCompetitionsWebSocket(io);
+    
+    // ============================================
+    // ODDS NAMESPACE (No auth required)
+    // ============================================
+    
+    io.of('/odds').on('connection', (socket) => {
+        console.log(`🎯 Odds WebSocket connected: ${socket.id}`);
+        oddsHandler.handleConnection(socket);
+    });
+    
+    // ============================================
+    // MATCHES NAMESPACE (No auth required for viewing)
+    // ============================================
+    // Initialized in MatchesHandler constructor
+    
+    // ============================================
+    // MAIN NAMESPACE (With auth)
+    // ============================================
+    
     // Authentication middleware
     io.use((socket, next) => {
         const token = socket.handshake.auth.token;
@@ -155,7 +184,55 @@ const setupWebSocket = (io) => {
         
         emitToPool: (poolId, event, data) => {
             io.to(`pool:${poolId}`).emit(event, data);
-        }
+        },
+        
+        // Match notification handlers
+        broadcastScoreUpdate: (matchId, data) => {
+            matchesHandler.broadcastScoreUpdate(matchId, data);
+        },
+        
+        broadcastKeyPlay: (matchId, data) => {
+            matchesHandler.broadcastKeyPlay(matchId, data);
+        },
+        
+        broadcastGameEnd: (matchId, data) => {
+            matchesHandler.broadcastGameEnd(matchId, data);
+        },
+        
+        broadcastInjury: (matchId, data) => {
+            matchesHandler.broadcastInjury(matchId, data);
+        },
+        
+        broadcastMomentumChange: (matchId, data) => {
+            matchesHandler.broadcastMomentumChange(matchId, data);
+        },
+        
+        broadcastOddsChange: (matchId, data) => {
+            matchesHandler.broadcastOddsChange(matchId, data);
+        },
+        
+        broadcastStats: (matchId, data) => {
+            matchesHandler.broadcastStats(matchId, data);
+        },
+        
+        registerMatch: (matchId, matchData) => {
+            matchesHandler.registerMatch(matchId, matchData);
+        },
+        
+        unregisterMatch: (matchId) => {
+            matchesHandler.unregisterMatch(matchId);
+        },
+        
+        getMatchData: (matchId) => {
+            return matchesHandler.getMatchData(matchId);
+        },
+        
+        getActiveMatches: () => {
+            return matchesHandler.getActiveMatches();
+        },
+        
+        matchesHandler,
+        scoresHandler
     };
 };
 
