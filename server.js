@@ -287,3 +287,5 @@ process.on('SIGINT', () => {
 });
 
 module.exports = { app, server, io };
+const scoresRoutes = require('./routes/scores');
+app.use('/api/scores', scoresRoutes);
