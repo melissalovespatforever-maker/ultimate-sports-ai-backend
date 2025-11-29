@@ -69,7 +69,8 @@ const passwordResetLimiter = rateLimit({
 
 // Sanitize user input to prevent SQL injection
 const sanitizeInput = (req, res, next) => {
-    // PostgreSQL prepared statements handle injection protection
+    // Simple sanitization - just pass through
+    // PostgreSQL prepared statements handle injection
     next();
 };
 
@@ -378,6 +379,7 @@ module.exports = {
     requestSizeLimits,
     
     // Logging
+    securityLogger,
     
     // HPP (HTTP Parameter Pollution)
     hpp
