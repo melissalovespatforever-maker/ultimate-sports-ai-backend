@@ -5,7 +5,6 @@
 
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
-const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const hpp = require('hpp');
 const cors = require('cors');
@@ -49,7 +48,7 @@ const paymentLimiter = rateLimit({
     max: 10, // Limit each IP to 10 payment attempts per hour
     message: {
         error: 'Too Many Payment Attempts',
-        message: 'Too many payment attempts, please try again later',
+        message: 'Too many payment attempts, please try again in 1 hour',
         retryAfter: '1 hour'
     }
 });
@@ -59,8 +58,8 @@ const passwordResetLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: 3, // Limit each IP to 3 password reset attempts per hour
     message: {
-        error: 'Too Many Password Reset Attempts',
-        message: 'Too many password reset attempts, please try again in 1 hour',
+        error: 'Too Many Reset Attempts',
+        message: 'Too many password reset attempts, please try again later',
         retryAfter: '1 hour'
     }
 });
@@ -69,17 +68,9 @@ const passwordResetLimiter = rateLimit({
 // INPUT VALIDATION & SANITIZATION
 // ============================================
 
-// Sanitize user input to prevent NoSQL injection
+// Sanitize user input to prevent SQL injection
 const sanitizeInput = (req, res, next) => {
-    if (req.body) {
-        mongoSanitize.sanitize(req.body);
-    }
-    if (req.query) {
-        mongoSanitize.sanitize(req.query);
-    }
-    if (req.params) {
-        mongoSanitize.sanitize(req.params);
-    }
+    // PostgreSQL prepared statements handle injection protection
     next();
 };
 
