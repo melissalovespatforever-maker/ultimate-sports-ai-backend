@@ -14,7 +14,6 @@ require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
 const oauthRoutes = require('./routes/oauth');
-const ageVerificationRoutes = require('./routes/age-verification');
 const userRoutes = require('./routes/users');
 const picksRoutes = require('./routes/picks');
 const socialRoutes = require('./routes/social');
@@ -233,7 +232,6 @@ app.get('/api/admin/init-database', async (req, res) => {
 // ============================================
 
 app.use('/api/auth', authRoutes);
-app.use('/api/auth', ageVerificationRoutes);
 app.use('/api/oauth', oauthRoutes);
 app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/picks', authenticateToken, picksRoutes);
