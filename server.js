@@ -13,6 +13,8 @@ const { Server } = require('socket.io');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
+const oauthRoutes = require('./routes/oauth');
+const ageVerificationRoutes = require('./routes/age-verification');
 const userRoutes = require('./routes/users');
 const picksRoutes = require('./routes/picks');
 const socialRoutes = require('./routes/social');
@@ -21,10 +23,22 @@ const challengesRoutes = require('./routes/challenges');
 const shopRoutes = require('./routes/shop');
 const analyticsRoutes = require('./routes/analytics');
 const oddsRoutes = require('./routes/odds');
+const scoresRoutes = require('./routes/scores');
 
 const { authenticateToken } = require('./middleware/auth');
 const { errorHandler } = require('./middleware/errorHandler');
 const { setupWebSocket } = require('./websocket/handler');
+const {
+    apiLimiter,
+    authLimiter,
+    paymentLimiter,
+    corsOptions,
+    securityHeaders,
+    sanitizeInput,
+    securityLogger,
+    xss,
+    hpp
+} = require('./middleware/security');
 
 // Initialize Express app
 const app = express();
@@ -48,31 +62,20 @@ const io = new Server(server, {
 // MIDDLEWARE
 // ============================================
 
-// Security
-app.use(helmet());
-app.use(cors({
-    origin: function(origin, callback) {
-        // Allow requests with no origin (mobile apps, Postman, etc)
-        if (!origin) return callback(null, true);
-        
-        // Allowed origins
-        const allowedOrigins = [
-            'http://localhost:3000',
-            'https://play.rosebud.ai',
-            'https://ultimate-sports-frontend.vercel.app',
-            process.env.FRONTEND_URL
-        ].filter(Boolean);
-        
-        // Check if origin is allowed or is a Rosebud/Vercel subdomain
-        if (allowedOrigins.includes(origin) || origin.includes('rosebud.ai') || origin.includes('vercel.app')) {
-            callback(null, true);
-        } else {
-            console.warn(`⚠️ Blocked CORS request from: ${origin}`);
-            callback(null, true); // Allow anyway for now during development
-        }
-    },
-    credentials: true
-}));
+// Security logging (must be first)
+app.use(securityLogger);
+
+// Security headers
+app.use(securityHeaders);
+
+// CORS with enhanced security
+app.use(cors(corsOptions));
+
+// XSS Protection
+app.use(xss());
+
+// HTTP Parameter Pollution Protection
+app.use(hpp());
 
 // Compression
 app.use(compression());
@@ -80,17 +83,15 @@ app.use(compression());
 // Trust proxy (required for Railway, Render, Heroku)
 app.set('trust proxy', 1);
 
-// Body parsing
+// Body parsing with size limits
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    message: 'Too many requests from this IP, please try again later.'
-});
-app.use('/api/', limiter);
+// Input sanitization (prevent NoSQL injection)
+app.use(sanitizeInput);
+
+// General API rate limiting
+app.use('/api/', apiLimiter);
 
 // Request logging (development)
 if (process.env.NODE_ENV === 'development') {
@@ -160,6 +161,12 @@ app.get('/api/test/games', (req, res) => {
     });
 });
 
+// Auth routes with strict rate limiting
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
+
 // Database initialization endpoint
 app.get('/api/admin/init-database', async (req, res) => {
     try {
@@ -226,6 +233,8 @@ app.get('/api/admin/init-database', async (req, res) => {
 // ============================================
 
 app.use('/api/auth', authRoutes);
+app.use('/api/auth', ageVerificationRoutes);
+app.use('/api/oauth', oauthRoutes);
 app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/picks', authenticateToken, picksRoutes);
 app.use('/api/social', authenticateToken, socialRoutes);
@@ -234,6 +243,7 @@ app.use('/api/challenges', authenticateToken, challengesRoutes);
 app.use('/api/shop', authenticateToken, shopRoutes);
 app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/odds', oddsRoutes); // Public route for odds data
+app.use('/api/scores', scoresRoutes); // Public route for live scores
 
 // 404 handler
 app.use((req, res) => {
@@ -287,5 +297,3 @@ process.on('SIGINT', () => {
 });
 
 module.exports = { app, server, io };
-const scoresRoutes = require('./routes/scores');
-app.use('/api/scores', scoresRoutes);
