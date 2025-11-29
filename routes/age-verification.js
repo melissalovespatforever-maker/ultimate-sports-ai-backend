@@ -5,18 +5,18 @@
 
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database');
-const auth = require('../middleware/auth');
+const { pool } = require('../config/database');
+const { authenticateToken } = require('../middleware/auth');
 
 /**
  * POST /api/auth/verify-age
  * Log age verification to database
  * Requires: Valid JWT token
  */
-router.post('/verify-age', auth, async (req, res) => {
+router.post('/verify-age', async (req, res) => {
     try {
         const { user_id, age_verified, age_verified_date, age_verification_method } = req.body;
-        const token_user_id = req.user.id;
+        const token_user_id = req.user?.id;
         
         // Security: Users can only verify their own age
         if (user_id !== token_user_id) {
@@ -45,7 +45,7 @@ router.post('/verify-age', auth, async (req, res) => {
             RETURNING id, age_verified, age_verified_date, age_verification_method
         `;
         
-        const result = await db.query(query, [
+        const result = await pool.query(query, [
             age_verified,
             new Date(age_verified_date),
             age_verification_method,
@@ -78,7 +78,7 @@ router.post('/verify-age', auth, async (req, res) => {
  * Get user's age verification status
  * Requires: Valid JWT token
  */
-router.get('/age-status', auth, async (req, res) => {
+router.get('/age-status', authenticateToken, async (req, res) => {
     try {
         const user_id = req.user.id;
         
@@ -92,7 +92,7 @@ router.get('/age-status', auth, async (req, res) => {
             WHERE id = $1
         `;
         
-        const result = await db.query(query, [user_id]);
+        const result = await pool.query(query, [user_id]);
         
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'User not found' });
@@ -123,7 +123,7 @@ router.get('/age-status', auth, async (req, res) => {
  * Admin: Block user for age verification failure
  * Requires: Admin JWT token
  */
-router.post('/admin/age-verification/block-user', auth, async (req, res) => {
+router.post('/admin/age-verification/block-user', authenticateToken, async (req, res) => {
     try {
         // Check if user is admin
         if (req.user.role !== 'admin') {
@@ -147,7 +147,7 @@ router.post('/admin/age-verification/block-user', auth, async (req, res) => {
             RETURNING id, username, email, is_active
         `;
         
-        const result = await db.query(query, [
+        const result = await pool.query(query, [
             `Age verification failed: ${reason}`,
             user_id
         ]);
@@ -178,7 +178,7 @@ router.post('/admin/age-verification/block-user', auth, async (req, res) => {
  * Admin: Get list of unverified users
  * Requires: Admin JWT token
  */
-router.get('/admin/age-verification/unverified-users', auth, async (req, res) => {
+router.get('/admin/age-verification/unverified-users', authenticateToken, async (req, res) => {
     try {
         // Check if user is admin
         if (req.user.role !== 'admin') {
@@ -200,7 +200,7 @@ router.get('/admin/age-verification/unverified-users', auth, async (req, res) =>
             LIMIT 100
         `;
         
-        const result = await db.query(query);
+        const result = await pool.query(query);
         
         res.json({
             success: true,
