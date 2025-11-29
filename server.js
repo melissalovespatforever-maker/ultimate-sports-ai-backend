@@ -35,7 +35,6 @@ const {
     securityHeaders,
     sanitizeInput,
     securityLogger,
-    xss,
     hpp
 } = require('./middleware/security');
 
@@ -69,9 +68,6 @@ app.use(securityHeaders);
 
 // CORS with enhanced security
 app.use(cors(corsOptions));
-
-// XSS Protection
-app.use(xss());
 
 // HTTP Parameter Pollution Protection
 app.use(hpp());
