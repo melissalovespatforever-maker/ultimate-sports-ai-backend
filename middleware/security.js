@@ -378,10 +378,6 @@ module.exports = {
     requestSizeLimits,
     
     // Logging
-    securityLogger,
-    
-    // XSS Protection
-    xss,
     
     // HPP (HTTP Parameter Pollution)
     hpp
