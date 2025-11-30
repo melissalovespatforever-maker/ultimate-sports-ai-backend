@@ -5,7 +5,6 @@
 
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
-const hpp = require('hpp');
 const cors = require('cors');
 
 // ============================================
@@ -379,8 +378,5 @@ module.exports = {
     requestSizeLimits,
     
     // Logging
-    securityLogger,
-    
-    // HPP (HTTP Parameter Pollution)
-    hpp
+    securityLogger
 };
