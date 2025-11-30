@@ -36,8 +36,6 @@ const {
     securityHeaders,
     sanitizeInput,
     securityLogger,
-    hpp
-} = require('./middleware/security');
 
 // Initialize Express app
 const app = express();
