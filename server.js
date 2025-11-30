@@ -13,7 +13,6 @@ const { Server } = require('socket.io');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
-const oauthRoutes = require('./routes/oauth');
 const userRoutes = require('./routes/users');
 const picksRoutes = require('./routes/picks');
 const socialRoutes = require('./routes/social');
@@ -35,7 +34,8 @@ const {
     corsOptions,
     securityHeaders,
     sanitizeInput,
-    securityLogger,
+    securityLogger
+} = require('./middleware/security');
 
 // Initialize Express app
 const app = express();
@@ -67,9 +67,6 @@ app.use(securityHeaders);
 
 // CORS with enhanced security
 app.use(cors(corsOptions));
-
-// HTTP Parameter Pollution Protection
-app.use(hpp());
 
 // Compression
 app.use(compression());
@@ -227,7 +224,6 @@ app.get('/api/admin/init-database', async (req, res) => {
 // ============================================
 
 app.use('/api/auth', authRoutes);
-app.use('/api/oauth', oauthRoutes);
 app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/picks', authenticateToken, picksRoutes);
 app.use('/api/social', authenticateToken, socialRoutes);
