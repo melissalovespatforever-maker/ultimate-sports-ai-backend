@@ -23,6 +23,7 @@ const shopRoutes = require('./routes/shop');
 const analyticsRoutes = require('./routes/analytics');
 const oddsRoutes = require('./routes/odds');
 const scoresRoutes = require('./routes/scores');
+const aiCoachesRoutes = require('./routes/ai-coaches');
 
 const { authenticateToken } = require('./middleware/auth');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -238,6 +239,7 @@ app.use('/api/shop', authenticateToken, shopRoutes);
 app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/odds', oddsRoutes); // Public route for odds data
 app.use('/api/scores', scoresRoutes); // Public route for live scores
+app.use('/api/ai-coaches', aiCoachesRoutes); // AI Coaches with real data
 
 // 404 handler
 app.use((req, res) => {
