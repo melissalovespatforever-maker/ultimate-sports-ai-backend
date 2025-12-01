@@ -23,6 +23,10 @@ const analyticsRoutes = require('./routes/analytics');
 const oddsRoutes = require('./routes/odds');
 const scoresRoutes = require('./routes/scores');
 const aiCoachesRoutes = require('./routes/ai-coaches');
+const paypalWebhooksRoutes = require('./routes/paypal-webhooks');
+const subscriptionsRoutes = require('./routes/subscriptions');
+const annualSubscriptionsRoutes = require('./routes/annual-subscriptions');
+const invoicesRoutes = require('./routes/invoices');
 
 const { authenticateToken } = require('./middleware/auth');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -234,6 +238,10 @@ app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/odds', oddsRoutes); // Public route for odds data
 app.use('/api/scores', scoresRoutes); // Public route for live scores
 app.use('/api/ai-coaches', aiCoachesRoutes); // AI Coaches with real data
+app.use('/api/paypal', paypalWebhooksRoutes); // PayPal webhook and verification endpoints
+app.use('/api/subscriptions', subscriptionsRoutes); // Subscription management
+app.use('/api/annual-subscriptions', annualSubscriptionsRoutes); // Annual subscription billing management
+app.use('/api/invoices', invoicesRoutes); // Email receipts and invoice management
 
 // 404 handler
 app.use((req, res) => {
