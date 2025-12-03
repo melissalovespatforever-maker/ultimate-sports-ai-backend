@@ -14,7 +14,6 @@ require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
-const picksRoutes = require('./routes/picks');
 const socialRoutes = require('./routes/social');
 const achievementsRoutes = require('./routes/achievements');
 const challengesRoutes = require('./routes/challenges');
@@ -229,7 +228,6 @@ app.get('/api/admin/init-database', async (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', authenticateToken, userRoutes);
-app.use('/api/picks', authenticateToken, picksRoutes);
 app.use('/api/social', authenticateToken, socialRoutes);
 app.use('/api/achievements', authenticateToken, achievementsRoutes);
 app.use('/api/challenges', authenticateToken, challengesRoutes);
