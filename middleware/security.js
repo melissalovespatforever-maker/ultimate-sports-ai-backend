@@ -120,6 +120,8 @@ const corsOptions = {
             'https://ultimate-sports-ai.com',
             'https://www.ultimate-sports-ai.com',
             'https://play.rosebud.ai',
+            'https://ultimate-sports-ai-v2.vercel.app',
+            'https://ultimate-sports-ai.vercel.app',
             'http://localhost:3000',
             'http://localhost:5173',
             process.env.FRONTEND_URL
