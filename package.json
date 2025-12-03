@@ -1,6 +1,6 @@
 {
   "name": "ultimate-sports-ai-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Backend server for Ultimate Sports AI platform",
   "main": "server.js",
   "scripts": {
@@ -38,7 +38,13 @@
     "redis": "^4.6.11",
     "joi": "^17.11.0",
     "winston": "^3.11.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "stripe": "^14.10.0",
+    "express-mongo-sanitize": "^2.2.0",
+    "xss-clean": "^0.1.4",
+    "hpp": "^0.2.3",
+    "express-session": "^1.17.3",
+    "cookie-parser": "^1.4.6"
   },
   "devDependencies": {
     "nodemon": "^3.0.2",
