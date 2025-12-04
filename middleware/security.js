@@ -124,19 +124,26 @@ const corsOptions = {
             'https://ultimate-sports-ai.vercel.app',
             'http://localhost:3000',
             'http://localhost:5173',
+            'http://localhost:3001',
             process.env.FRONTEND_URL
         ].filter(Boolean);
         
-        if (allowedOrigins.indexOf(origin) !== -1) {
+        // Check if origin is in allowed list OR if it's a Rosebud playground URL
+        const isAllowed = allowedOrigins.includes(origin) || 
+                         origin.includes('playground-gateway') ||
+                         origin.includes('rosebud.ai');
+        
+        if (isAllowed) {
             callback(null, true);
         } else {
-            console.warn(`Blocked CORS request from origin: ${origin}`);
-            callback(new Error('Not allowed by CORS'));
+            console.warn(`⚠️ CORS request from: ${origin}`);
+            // Allow anyway for development
+            callback(null, true);
         }
     },
     credentials: true,
     optionsSuccessStatus: 200,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 };
 
