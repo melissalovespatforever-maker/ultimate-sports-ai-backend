@@ -7,12 +7,14 @@ const jwt = require('jsonwebtoken');
 const OddsHandler = require('./odds-handler');
 const MatchesHandler = require('./matches-handler');
 const ScoresHandler = require('./scores-handler');
+const PicksHandler = require('./picks-handler');
 const { setupCompetitionsWebSocket } = require('./competitions-handler');
 
 const setupWebSocket = (io) => {
     const oddsHandler = new OddsHandler(io);
     const matchesHandler = new MatchesHandler(io);
     const scoresHandler = new ScoresHandler(io);
+    const picksHandler = new PicksHandler(io);
     
     // Setup competitions namespace (Phase 18)
     setupCompetitionsWebSocket(io);
@@ -30,6 +32,15 @@ const setupWebSocket = (io) => {
     // MATCHES NAMESPACE (No auth required for viewing)
     // ============================================
     // Initialized in MatchesHandler constructor
+    
+    // ============================================
+    // PICKS NAMESPACE (Real-time pick notifications)
+    // ============================================
+    
+    io.of('/picks').on('connection', (socket) => {
+        console.log(`🎲 Picks WebSocket connected: ${socket.id}`);
+        picksHandler.handleConnection(socket);
+    });
     
     // ============================================
     // MAIN NAMESPACE (With auth)
@@ -231,8 +242,46 @@ const setupWebSocket = (io) => {
             return matchesHandler.getActiveMatches();
         },
         
+        // Picks handlers
+        broadcastNewPick: (pick) => {
+            picksHandler.broadcastNewPick(pick);
+        },
+        
+        broadcastPickResult: (pickId, result, coachId) => {
+            picksHandler.broadcastPickResult(pickId, result, coachId);
+        },
+        
+        broadcastStreakUpdate: (coachId, streak, accuracy) => {
+            picksHandler.broadcastStreakUpdate(coachId, streak, accuracy);
+        },
+        
+        broadcastStatsUpdate: (coachId, stats) => {
+            picksHandler.broadcastStatsUpdate(coachId, stats);
+        },
+        
+        broadcastMarketMovement: (coachId, pickId, data) => {
+            picksHandler.broadcastMarketMovement(coachId, pickId, data);
+        },
+        
+        broadcastInjuryAlert: (coachId, pickId, data) => {
+            picksHandler.broadcastInjuryAlert(coachId, pickId, data);
+        },
+        
+        broadcastGameStatus: (pickId, data) => {
+            picksHandler.broadcastGameStatus(pickId, data);
+        },
+        
+        notifyUser: (userId, notification) => {
+            picksHandler.notifyUser(userId, notification);
+        },
+        
+        getActivePickStats: () => {
+            return picksHandler.getActivePickStats();
+        },
+        
         matchesHandler,
-        scoresHandler
+        scoresHandler,
+        picksHandler
     };
 };
 
