@@ -27,7 +27,8 @@ const initCoachesGetRoutes = require('./routes/init-coaches-get');
 const checkCoachesRoutes = require('./routes/check-coaches');
 const tournamentsRoutes = require('./routes/tournaments');
 const shopRoutes = require('./routes/shop');
-const pushNotificationsRoutes = require('./routes/push-notifications');
+const referralsRoutes = require('./routes/referrals');
+// const pushNotificationsRoutes = require('./routes/push-notifications'); // TEMP DISABLED FOR DEPLOYMENT
 
 const { authenticateToken } = require('./middleware/auth');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -670,7 +671,8 @@ app.use('/api/ai-coaches', aiCoachesRoutes); // AI Coaches with real data
 app.use('/api/subscriptions', subscriptionsRoutes); // Subscription management
 app.use('/api/tournaments', authenticateToken, tournamentsRoutes); // Tournament management with coin validation
 app.use('/api/shop', shopRoutes); // Shop & Daily Deals system
-app.use('/api/notifications', pushNotificationsRoutes); // Push notifications (native iOS/Android + web)
+app.use('/api/referrals', referralsRoutes); // Referral program with rewards
+// app.use('/api/notifications', pushNotificationsRoutes); // Push notifications (native iOS/Android + web) - TEMP DISABLED
 app.use('/api/admin', adminRoutes); // Admin panel routes
 app.use('/api/init-coaches', initCoachesRoutes); // Initialize coaches tables (POST method)
 app.use('/api/init-coaches-now', initCoachesGetRoutes); // Initialize coaches tables (GET method - just visit URL)
