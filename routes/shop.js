@@ -5,7 +5,15 @@
 
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../config/database');
+
+// Safely require database with fallback
+let pool;
+try {
+    pool = require('../config/database').pool;
+} catch (err) {
+    console.warn('⚠️ Warning: Could not load database pool:', err.message);
+}
+
 const { authenticateToken } = require('../middleware/auth');
 
 // ============================================
@@ -13,6 +21,14 @@ const { authenticateToken } = require('../middleware/auth');
 // ============================================
 router.get('/items', async (req, res) => {
     try {
+        if (!pool) {
+            return res.status(503).json({ 
+                success: false,
+                error: 'Database not available',
+                message: 'Shop service temporarily unavailable'
+            });
+        }
+        
         const result = await pool.query(`
             SELECT * FROM shop_inventory
             ORDER BY 
@@ -30,7 +46,10 @@ router.get('/items', async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching shop items:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ 
+            success: false,
+            error: error.message 
+        });
     }
 });
 
@@ -39,6 +58,13 @@ router.get('/items', async (req, res) => {
 // ============================================
 router.get('/deals/stock', async (req, res) => {
     try {
+        if (!pool) {
+            return res.status(503).json({ 
+                success: false,
+                error: 'Database not available'
+            });
+        }
+        
         // First reset any expired stock
         await pool.query('SELECT reset_daily_deal_stock()');
         
@@ -57,7 +83,10 @@ router.get('/deals/stock', async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching deal stock:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ 
+            success: false,
+            error: error.message 
+        });
     }
 });
 
