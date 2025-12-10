@@ -27,6 +27,7 @@ const initCoachesGetRoutes = require('./routes/init-coaches-get');
 const checkCoachesRoutes = require('./routes/check-coaches');
 const tournamentsRoutes = require('./routes/tournaments');
 const shopRoutes = require('./routes/shop');
+const pushNotificationsRoutes = require('./routes/push-notifications');
 
 const { authenticateToken } = require('./middleware/auth');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -250,7 +251,7 @@ CREATE INDEX IF NOT EXISTS idx_picks_sport ON coach_picks(sport);
 // ROUTES
 // ============================================
 
-// Health check
+// Health check (Railway monitoring)
 app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
@@ -259,6 +260,19 @@ app.get('/health', (req, res) => {
         environment: process.env.NODE_ENV,
         oddsApiConfigured: !!process.env.THE_ODDS_API_KEY,
         databaseReady: dbInitialized
+    });
+});
+
+// API Health check
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'healthy',
+        service: 'ultimate-sports-ai-backend',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV,
+        version: '2.0.0',
+        database: dbInitialized ? 'ready' : 'initializing'
     });
 });
 
@@ -656,6 +670,7 @@ app.use('/api/ai-coaches', aiCoachesRoutes); // AI Coaches with real data
 app.use('/api/subscriptions', subscriptionsRoutes); // Subscription management
 app.use('/api/tournaments', authenticateToken, tournamentsRoutes); // Tournament management with coin validation
 app.use('/api/shop', shopRoutes); // Shop & Daily Deals system
+app.use('/api/notifications', pushNotificationsRoutes); // Push notifications (native iOS/Android + web)
 app.use('/api/admin', adminRoutes); // Admin panel routes
 app.use('/api/init-coaches', initCoachesRoutes); // Initialize coaches tables (POST method)
 app.use('/api/init-coaches-now', initCoachesGetRoutes); // Initialize coaches tables (GET method - just visit URL)
