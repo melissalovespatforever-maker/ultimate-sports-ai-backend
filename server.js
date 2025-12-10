@@ -25,6 +25,8 @@ const adminRoutes = require('./routes/admin');
 const initCoachesRoutes = require('./routes/init-coaches');
 const initCoachesGetRoutes = require('./routes/init-coaches-get');
 const checkCoachesRoutes = require('./routes/check-coaches');
+const tournamentsRoutes = require('./routes/tournaments');
+const shopRoutes = require('./routes/shop');
 
 const { authenticateToken } = require('./middleware/auth');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -652,6 +654,8 @@ app.use('/api/odds', oddsRoutes); // Public route for odds data
 app.use('/api/scores', scoresRoutes); // Public route for live scores
 app.use('/api/ai-coaches', aiCoachesRoutes); // AI Coaches with real data
 app.use('/api/subscriptions', subscriptionsRoutes); // Subscription management
+app.use('/api/tournaments', authenticateToken, tournamentsRoutes); // Tournament management with coin validation
+app.use('/api/shop', shopRoutes); // Shop & Daily Deals system
 app.use('/api/admin', adminRoutes); // Admin panel routes
 app.use('/api/init-coaches', initCoachesRoutes); // Initialize coaches tables (POST method)
 app.use('/api/init-coaches-now', initCoachesGetRoutes); // Initialize coaches tables (GET method - just visit URL)
