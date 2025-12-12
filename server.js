@@ -13,6 +13,7 @@ const { Server } = require('socket.io');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
+const twoFactorRoutes = require('./routes/two-factor');
 const userRoutes = require('./routes/users');
 const socialRoutes = require('./routes/social');
 const achievementsRoutes = require('./routes/achievements');
@@ -20,6 +21,7 @@ const analyticsRoutes = require('./routes/analytics');
 const oddsRoutes = require('./routes/odds');
 const scoresRoutes = require('./routes/scores');
 const aiCoachesRoutes = require('./routes/ai-coaches');
+const aiChatRoutes = require('./routes/ai-chat'); // AI Chat with intelligence
 const subscriptionsRoutes = require('./routes/subscriptions');
 const adminRoutes = require('./routes/admin');
 const initCoachesRoutes = require('./routes/init-coaches');
@@ -34,6 +36,7 @@ const shopRoutes = require('./routes/shop');
 const { authenticateToken } = require('./middleware/auth');
 const { errorHandler } = require('./middleware/errorHandler');
 const { setupWebSocket } = require('./websocket/handler');
+const { initializeLiveDashboard } = require('./websocket/live-dashboard-handler');
 const {
     apiLimiter,
     authLimiter,
@@ -92,6 +95,16 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Input sanitization (prevent NoSQL injection)
 app.use(sanitizeInput);
+
+// HTTPS redirect (production only)
+if (process.env.NODE_ENV === 'production') {
+    app.use((req, res, next) => {
+        if (req.header('x-forwarded-proto') !== 'https') {
+            return res.redirect(`https://${req.header('host')}${req.url}`);
+        }
+        next();
+    });
+}
 
 // General API rate limiting
 app.use('/api/', apiLimiter);
@@ -662,6 +675,7 @@ app.use(async (req, res, next) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/2fa', twoFactorRoutes); // Two-factor authentication
 app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/social', authenticateToken, socialRoutes);
 app.use('/api/achievements', authenticateToken, achievementsRoutes);
@@ -669,6 +683,7 @@ app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/odds', oddsRoutes); // Public route for odds data
 app.use('/api/scores', scoresRoutes); // Public route for live scores
 app.use('/api/ai-coaches', aiCoachesRoutes); // AI Coaches with real data
+app.use('/api/ai-chat', aiChatRoutes); // AI Chat with super intelligence
 app.use('/api/subscriptions', subscriptionsRoutes); // Subscription management
 // app.use('/api/tournaments', authenticateToken, tournamentsRoutes); // Tournament management - TEMP DISABLED
 app.use('/api/shop', shopRoutes); // Shop & Daily Deals system
@@ -705,6 +720,7 @@ process.on('unhandledRejection', (reason, promise) => {
 // ============================================
 
 setupWebSocket(io);
+initializeLiveDashboard(io);
 
 // ============================================
 // SERVER START
