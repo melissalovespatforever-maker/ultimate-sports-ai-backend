@@ -287,7 +287,30 @@ app.get('/api/health', (req, res) => {
         uptime: process.uptime(),
         environment: process.env.NODE_ENV,
         version: '2.0.0',
+        oddsApiKey: process.env.THE_ODDS_API_KEY ? 'configured' : 'not_configured',
         database: dbInitialized ? 'ready' : 'initializing'
+    });
+});
+
+// ============================================
+// LIVE DASHBOARD API
+// ============================================
+
+// Get Odds API Key for Live Dashboard
+app.get('/api/live-dashboard/config', (req, res) => {
+    console.log('📊 Live Dashboard config requested');
+    res.json({
+        success: true,
+        oddsApiKey: process.env.THE_ODDS_API_KEY,
+        oddsApiUrl: 'https://api.the-odds-api.com/v4',
+        updateInterval: 30000,
+        sports: [
+            { key: 'basketball_nba', name: 'NBA', sport: 'basketball' },
+            { key: 'americanfootball_nfl', name: 'NFL', sport: 'americanfootball' },
+            { key: 'baseball_mlb', name: 'MLB', sport: 'baseball' },
+            { key: 'icehockey_nhl', name: 'NHL', sport: 'icehockey' },
+            { key: 'soccer_epl', name: 'Soccer', sport: 'soccer' }
+        ]
     });
 });
 
