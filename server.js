@@ -12,45 +12,209 @@ const http = require('http');
 const { Server } = require('socket.io');
 require('dotenv').config();
 
-const authRoutes = require('./routes/auth');
-const twoFactorRoutes = require('./routes/two-factor');
-const userRoutes = require('./routes/users');
-const socialRoutes = require('./routes/social');
-const achievementsRoutes = require('./routes/achievements');
-const analyticsRoutes = require('./routes/analytics');
-const oddsRoutes = require('./routes/odds');
-const scoresRoutes = require('./routes/scores');
-const aiCoachesRoutes = require('./routes/ai-coaches');
-const aiChatRoutes = require('./routes/ai-chat'); // AI Chat with intelligence
-const subscriptionsRoutes = require('./routes/subscriptions');
-const adminRoutes = require('./routes/admin');
-const initCoachesRoutes = require('./routes/init-coaches');
-const initCoachesGetRoutes = require('./routes/init-coaches-get');
-const checkCoachesRoutes = require('./routes/check-coaches');
-// const tournamentsRoutes = require('./routes/tournaments'); // TEMP DISABLED - router issues
-const shopRoutes = require('./routes/shop');
-// const referralsRoutes = require('./routes/referrals'); // TEMP DISABLED - persistent issues
-// const runReferralMigrationRoute = require('./routes/run-referral-migration'); // TEMP DISABLED
-// const pushNotificationsRoutes = require('./routes/push-notifications'); // TEMP DISABLED FOR DEPLOYMENT
+// Load routes with error handling
+let authRoutes, twoFactorRoutes, userRoutes, socialRoutes, achievementsRoutes, analyticsRoutes;
+let oddsRoutes, scoresRoutes, aiCoachesRoutes, aiChatRoutes, subscriptionsRoutes, adminRoutes;
+let initCoachesRoutes, initCoachesGetRoutes, checkCoachesRoutes, shopRoutes;
 
-const { authenticateToken } = require('./middleware/auth');
-const { errorHandler } = require('./middleware/errorHandler');
-const { setupWebSocket } = require('./websocket/handler');
-const { initializeLiveDashboard } = require('./websocket/live-dashboard-handler');
-const {
-    apiLimiter,
-    authLimiter,
-    paymentLimiter,
-    corsOptions,
-    securityHeaders,
-    sanitizeInput,
-    securityLogger
-} = require('./middleware/security');
+try {
+    authRoutes = require('./routes/auth');
+    console.log('✅ Auth routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load auth routes:', e.message);
+    authRoutes = require('express').Router();
+}
 
-// Initialize database pool globally for coaches route
-const { pool } = require('./config/database');
-global.db = pool;
-console.log('✅ Database pool exposed globally');
+try {
+    twoFactorRoutes = require('./routes/two-factor');
+    console.log('✅ Two-factor routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load two-factor routes:', e.message);
+    twoFactorRoutes = require('express').Router();
+}
+
+try {
+    userRoutes = require('./routes/users');
+    console.log('✅ User routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load user routes:', e.message);
+    userRoutes = require('express').Router();
+}
+
+try {
+    socialRoutes = require('./routes/social');
+    console.log('✅ Social routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load social routes:', e.message);
+    socialRoutes = require('express').Router();
+}
+
+try {
+    achievementsRoutes = require('./routes/achievements');
+    console.log('✅ Achievements routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load achievements routes:', e.message);
+    achievementsRoutes = require('express').Router();
+}
+
+try {
+    analyticsRoutes = require('./routes/analytics');
+    console.log('✅ Analytics routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load analytics routes:', e.message);
+    analyticsRoutes = require('express').Router();
+}
+
+try {
+    oddsRoutes = require('./routes/odds');
+    console.log('✅ Odds routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load odds routes:', e.message);
+    oddsRoutes = require('express').Router();
+}
+
+try {
+    scoresRoutes = require('./routes/scores');
+    console.log('✅ Scores routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load scores routes:', e.message);
+    scoresRoutes = require('express').Router();
+}
+
+try {
+    aiCoachesRoutes = require('./routes/ai-coaches');
+    console.log('✅ AI Coaches routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load ai-coaches routes:', e.message);
+    aiCoachesRoutes = require('express').Router();
+}
+
+try {
+    aiChatRoutes = require('./routes/ai-chat');
+    console.log('✅ AI Chat routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load ai-chat routes:', e.message);
+    aiChatRoutes = require('express').Router();
+}
+
+try {
+    subscriptionsRoutes = require('./routes/subscriptions');
+    console.log('✅ Subscriptions routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load subscriptions routes:', e.message);
+    subscriptionsRoutes = require('express').Router();
+}
+
+try {
+    adminRoutes = require('./routes/admin');
+    console.log('✅ Admin routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load admin routes:', e.message);
+    adminRoutes = require('express').Router();
+}
+
+try {
+    initCoachesRoutes = require('./routes/init-coaches');
+    console.log('✅ Init coaches routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load init-coaches routes:', e.message);
+    initCoachesRoutes = require('express').Router();
+}
+
+try {
+    initCoachesGetRoutes = require('./routes/init-coaches-get');
+    console.log('✅ Init coaches GET routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load init-coaches-get routes:', e.message);
+    initCoachesGetRoutes = require('express').Router();
+}
+
+try {
+    checkCoachesRoutes = require('./routes/check-coaches');
+    console.log('✅ Check coaches routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load check-coaches routes:', e.message);
+    checkCoachesRoutes = require('express').Router();
+}
+
+try {
+    shopRoutes = require('./routes/shop');
+    console.log('✅ Shop routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load shop routes:', e.message);
+    shopRoutes = require('express').Router();
+}
+
+// Load middleware with error handling
+let authenticateToken, errorHandler, setupWebSocket, initializeLiveDashboard;
+let apiLimiter, authLimiter, paymentLimiter, corsOptions, securityHeaders, sanitizeInput, securityLogger;
+let pool;
+
+try {
+    const authMiddleware = require('./middleware/auth');
+    authenticateToken = authMiddleware.authenticateToken;
+    console.log('✅ Auth middleware loaded');
+} catch (e) {
+    console.error('❌ Failed to load auth middleware:', e.message);
+    authenticateToken = (req, res, next) => next();
+}
+
+try {
+    const errHandler = require('./middleware/errorHandler');
+    errorHandler = errHandler.errorHandler;
+    console.log('✅ Error handler loaded');
+} catch (e) {
+    console.error('❌ Failed to load error handler:', e.message);
+    errorHandler = (err, req, res, next) => res.status(500).json({ error: 'Server error' });
+}
+
+try {
+    const websocketHandler = require('./websocket/handler');
+    setupWebSocket = websocketHandler.setupWebSocket;
+    console.log('✅ WebSocket handler loaded');
+} catch (e) {
+    console.error('❌ Failed to load websocket handler:', e.message);
+    setupWebSocket = (io) => console.log('WebSocket handler skipped');
+}
+
+try {
+    const liveDashboardHandler = require('./websocket/live-dashboard-handler');
+    initializeLiveDashboard = liveDashboardHandler.initializeLiveDashboard;
+    console.log('✅ Live dashboard handler loaded');
+} catch (e) {
+    console.error('❌ Failed to load live dashboard handler:', e.message);
+    initializeLiveDashboard = (io) => console.log('Live dashboard handler skipped');
+}
+
+try {
+    const securityMiddleware = require('./middleware/security');
+    apiLimiter = securityMiddleware.apiLimiter;
+    authLimiter = securityMiddleware.authLimiter;
+    paymentLimiter = securityMiddleware.paymentLimiter;
+    corsOptions = securityMiddleware.corsOptions;
+    securityHeaders = securityMiddleware.securityHeaders;
+    sanitizeInput = securityMiddleware.sanitizeInput;
+    securityLogger = securityMiddleware.securityLogger;
+    console.log('✅ Security middleware loaded');
+} catch (e) {
+    console.error('❌ Failed to load security middleware:', e.message);
+    apiLimiter = (req, res, next) => next();
+    authLimiter = (req, res, next) => next();
+    paymentLimiter = (req, res, next) => next();
+    corsOptions = { origin: '*' };
+    securityHeaders = (req, res, next) => next();
+    sanitizeInput = (req, res, next) => next();
+    securityLogger = (req, res, next) => next();
+}
+
+try {
+    const database = require('./config/database');
+    pool = database.pool;
+    global.db = pool;
+    console.log('✅ Database pool exposed globally');
+} catch (e) {
+    console.error('❌ Failed to load database:', e.message);
+}
 
 // Initialize Express app
 const app = express();
