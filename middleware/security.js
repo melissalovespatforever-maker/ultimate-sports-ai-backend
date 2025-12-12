@@ -128,17 +128,18 @@ const corsOptions = {
             process.env.FRONTEND_URL
         ].filter(Boolean);
         
-        // Check if origin is in allowed list OR if it's a Rosebud playground URL
-        const isAllowed = allowedOrigins.includes(origin) || 
-                         origin.includes('playground-gateway') ||
-                         origin.includes('rosebud.ai');
+        // Check if origin is in allowed list
+        const isAllowed = allowedOrigins.includes(origin);
         
-        if (isAllowed) {
+        // In development, allow Rosebud playground for testing
+        const isDevelopment = process.env.NODE_ENV === 'development';
+        const isRosebud = isDevelopment && (origin.includes('playground-gateway') || origin.includes('rosebud.ai'));
+        
+        if (isAllowed || isRosebud) {
             callback(null, true);
         } else {
-            console.warn(`⚠️ CORS request from: ${origin}`);
-            // Allow anyway for development
-            callback(null, true);
+            console.warn(`⚠️ CORS rejected from: ${origin}`);
+            callback(new Error('CORS not allowed'));
         }
     },
     credentials: true,
@@ -156,11 +157,11 @@ const securityHeaders = helmet({
         directives: {
             defaultSrc: ["'self'"],
             styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdnjs.cloudflare.com'],
-            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.jsdelivr.net', 'https://js.stripe.com'],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.jsdelivr.net', 'https://www.paypal.com'],
             imgSrc: ["'self'", 'data:', 'https:', 'http:'],
             fontSrc: ["'self'", 'https://fonts.gstatic.com', 'https://cdnjs.cloudflare.com'],
-            connectSrc: ["'self'", 'https://api.stripe.com', 'wss:', 'ws:'],
-            frameSrc: ["'self'", 'https://js.stripe.com', 'https://hooks.stripe.com'],
+            connectSrc: ["'self'", 'https://api.paypal.com', 'https://www.paypal.com', 'wss:', 'ws:'],
+            frameSrc: ["'self'", 'https://www.paypal.com'],
             objectSrc: ["'none'"],
             upgradeInsecureRequests: []
         }
