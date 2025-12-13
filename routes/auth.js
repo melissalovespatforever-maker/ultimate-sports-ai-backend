@@ -124,10 +124,10 @@ router.post('/login', async (req, res, next) => {
         
         const { email, password } = value;
         
-        // Get user
+        // Get user (include 2FA status)
         const result = await query(
             `SELECT id, username, email, password_hash, subscription_tier, level, xp, coins,
-                    wins, losses, win_rate, current_streak, best_streak
+                    wins, losses, win_rate, current_streak, best_streak, two_factor_enabled
              FROM users WHERE email = $1 AND is_active = true`,
             [email]
         );
@@ -147,6 +147,17 @@ router.post('/login', async (req, res, next) => {
             return res.status(401).json({
                 error: 'Unauthorized',
                 message: 'Invalid email or password'
+            });
+        }
+        
+        // Check if 2FA is enabled
+        if (user.two_factor_enabled) {
+            // Return partial response - require 2FA verification
+            return res.json({
+                message: '2FA required',
+                requiresTwoFactor: true,
+                userId: user.id,
+                email: user.email
             });
         }
         
@@ -175,6 +186,63 @@ router.post('/login', async (req, res, next) => {
             accessToken,
             refreshToken
         });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// POST /api/auth/login-2fa - Complete login after 2FA verification
+router.post('/login-2fa', async (req, res, next) => {
+    try {
+        const { userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({
+                error: 'Validation Error',
+                message: 'User ID required'
+            });
+        }
+
+        // Get user data
+        const result = await query(
+            `SELECT id, username, email, subscription_tier, level, xp, coins,
+                    wins, losses, win_rate, current_streak, best_streak
+             FROM users WHERE id = $1 AND is_active = true`,
+            [userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                error: 'Not Found',
+                message: 'User not found'
+            });
+        }
+
+        const user = result.rows[0];
+
+        // Update last login
+        await query(
+            'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+            [user.id]
+        );
+
+        // Generate tokens
+        const { accessToken, refreshToken } = generateTokens(user.id);
+
+        // Store refresh token
+        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        await query(
+            'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+            [user.id, refreshToken, expiresAt]
+        );
+
+        res.json({
+            message: 'Login successful',
+            user,
+            accessToken,
+            refreshToken
+        });
+
     } catch (error) {
         next(error);
     }
