@@ -131,9 +131,8 @@ const corsOptions = {
         // Check if origin is in allowed list
         const isAllowed = allowedOrigins.includes(origin);
         
-        // In development, allow Rosebud playground for testing
-        const isDevelopment = process.env.NODE_ENV === 'development';
-        const isRosebud = isDevelopment && (origin.includes('playground-gateway') || origin.includes('rosebud.ai'));
+        // Always allow Rosebud playground gateway for development/testing
+        const isRosebud = origin.includes('playground-gateway') || origin.includes('rosebud.ai');
         
         if (isAllowed || isRosebud) {
             callback(null, true);
@@ -145,7 +144,7 @@ const corsOptions = {
     credentials: true,
     optionsSuccessStatus: 200,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 };
 
 // ============================================
