@@ -1,10 +1,10 @@
 -- ============================================
--- ULTIMATE SPORTS AI - SEED DATA
--- Initial data for development and production
+-- ULTIMATE SPORTS AI - PRODUCTION SEED DATA
+-- Only essential data - NO test users
 -- ============================================
 
 -- ============================================
--- ACHIEVEMENTS
+-- ACHIEVEMENTS (Essential Game Mechanics)
 -- ============================================
 
 INSERT INTO achievements (id, name, description, icon, category, xp_reward, rarity, required_value, stat_type) VALUES
@@ -57,7 +57,7 @@ INSERT INTO challenges (id, name, description, icon, type, goal_type, goal_value
 ('weekly_streak', 'Weekly Streaker', 'Get a 3-win streak this week', '🔥', 'weekly', 'streak_week', 3, 250, 500, CURRENT_DATE - EXTRACT(DOW FROM CURRENT_DATE)::INTEGER, CURRENT_DATE - EXTRACT(DOW FROM CURRENT_DATE)::INTEGER + INTERVAL '7 days');
 
 -- ============================================
--- SHOP ITEMS
+-- SHOP ITEMS (In-Game Economy)
 -- ============================================
 
 INSERT INTO shop_items (id, name, description, icon, category, coin_price, item_type, boost_type, boost_multiplier, duration_hours, is_available, stock) VALUES
@@ -85,59 +85,19 @@ INSERT INTO shop_items (id, name, description, icon, category, coin_price, item_
 ('badge_frame_diamond', 'Diamond Badge Frame', 'Diamond profile frame', '💎', 'cosmetics', 1500, 'cosmetic', NULL, NULL, NULL, TRUE, NULL);
 
 -- ============================================
--- ADMIN USER (for testing)
+-- PRODUCTION COMPLETION MESSAGE
 -- ============================================
 
--- Password is: admin123 (bcrypt hashed)
-INSERT INTO users (
-    id,
-    username,
-    email,
-    password_hash,
-    avatar,
-    subscription_tier,
-    level,
-    xp,
-    coins,
-    is_verified,
-    is_active
-) VALUES (
-    'a0000000-0000-0000-0000-000000000001',
-    'admin',
-    'admin@sportsai.com',
-    '$2b$10$rQ.6YJYhOYJYhYJYhYJYhuL5TYGxZd7.XyqXLqNvZzQzQzQzQzQzQ', -- admin123
-    '👨‍💼',
-    'VIP',
-    99,
-    999999,
-    999999,
-    TRUE,
-    TRUE
-);
-
--- ============================================
--- TEST USERS (for development)
--- ============================================
-
--- Password is: test123 for all test users
-INSERT INTO users (username, email, password_hash, avatar, subscription_tier, level, xp, coins, is_verified) VALUES
-('testuser1', 'test1@example.com', '$2b$10$rQ.6YJYhOYJYhYJYhYJYhuL5TYGxZd7.XyqXLqNvZzQzQzQzQzQzQ', '⚽', 'FREE', 5, 1250, 500, TRUE),
-('testuser2', 'test2@example.com', '$2b$10$rQ.6YJYhOYJYhYJYhYJYhuL5TYGxZd7.XyqXLqNvZzQzQzQzQzQzQ', '🏀', 'PRO', 10, 3500, 1500, TRUE),
-('testuser3', 'test3@example.com', '$2b$10$rQ.6YJYhOYJYhYJYhYJYhuL5TYGxZd7.XyqXLqNvZzQzQzQzQzQzQ', '🏈', 'VIP', 25, 15000, 5000, TRUE);
-
--- ============================================
--- COMPLETION MESSAGE
--- ============================================
-
--- Display success message
 DO $$
 BEGIN
-    RAISE NOTICE '✅ Database seeded successfully!';
+    RAISE NOTICE '✅ PRODUCTION database seeded successfully!';
     RAISE NOTICE '📊 Created: % achievements', (SELECT COUNT(*) FROM achievements);
     RAISE NOTICE '🎯 Created: % challenges', (SELECT COUNT(*) FROM challenges);
     RAISE NOTICE '🏪 Created: % shop items', (SELECT COUNT(*) FROM shop_items);
-    RAISE NOTICE '👥 Created: % users (PRODUCTION MODE: Test users disabled)', (SELECT COUNT(*) FROM users);
+    RAISE NOTICE '👥 Users: 0 (real users only via OAuth/Registration)';
     RAISE NOTICE '';
-    RAISE NOTICE '🚀 PRODUCTION MODE: Only real users via OAuth/Registration';
+    RAISE NOTICE '🚀 PRODUCTION MODE ACTIVE';
+    RAISE NOTICE '✅ No test/demo users created';
+    RAISE NOTICE '✅ Users will register via Google/Apple OAuth';
     RAISE NOTICE '';
 END $$;

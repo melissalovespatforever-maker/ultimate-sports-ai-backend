@@ -16,7 +16,20 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     avatar VARCHAR(10) DEFAULT '👤',
-    subscription_tier VARCHAR(10) DEFAULT 'FREE' CHECK (subscription_tier IN ('FREE', 'PRO', 'VIP')),
+    subscription_tier VARCHAR(10) DEFAULT 'free' CHECK (subscription_tier IN ('free', 'pro', 'vip')),
+    
+    -- PayPal Integration
+    paypal_customer_id VARCHAR(100) UNIQUE,
+    paypal_subscription_id VARCHAR(100),
+    subscription_status VARCHAR(20) DEFAULT 'inactive' CHECK (subscription_status IN ('inactive', 'active', 'canceling', 'canceled', 'past_due', 'trialing')),
+    subscription_starts_at TIMESTAMP,
+    subscription_ends_at TIMESTAMP,
+    subscription_trial_ends TIMESTAMP,
+    
+    -- Referral System
+    referral_code VARCHAR(50) UNIQUE,
+    referred_by UUID REFERENCES users(id),
+    referred_at TIMESTAMP,
     
     -- Stats
     level INTEGER DEFAULT 1,
@@ -64,6 +77,75 @@ CREATE TABLE refresh_tokens (
 
 CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_token ON refresh_tokens(token);
+
+-- ============================================
+-- COMPETITIONS & MATCHMAKING (Phase 18)
+-- ============================================
+
+CREATE TABLE competitions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    type VARCHAR(10) NOT NULL CHECK (type IN ('1v1', '2v2', 'tournament')),
+    title VARCHAR(255) NOT NULL,
+    format VARCHAR(20) NOT NULL DEFAULT 'best_of_5' CHECK (format IN ('best_of_3', 'best_of_5', 'best_of_7')),
+    sport VARCHAR(20) NOT NULL DEFAULT 'all',
+    wager_amount INTEGER DEFAULT 0,
+    
+    -- Status
+    status VARCHAR(20) DEFAULT 'waiting' CHECK (status IN ('waiting', 'matched', 'in_progress', 'completed', 'expired')),
+    
+    -- Participants
+    challenger_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    challenger_username VARCHAR(50) NOT NULL,
+    challenger_avatar VARCHAR(255),
+    challenger_score INTEGER DEFAULT 0,
+    
+    opponent_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    opponent_username VARCHAR(50),
+    opponent_avatar VARCHAR(255),
+    opponent_score INTEGER DEFAULT 0,
+    
+    -- Match tracking
+    match_count INTEGER DEFAULT 0,
+    winner_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    
+    -- Timestamps
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    matched_at TIMESTAMP,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    expires_at TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '24 hours')
+);
+
+CREATE INDEX idx_competitions_status ON competitions(status);
+CREATE INDEX idx_competitions_challenger ON competitions(challenger_id);
+CREATE INDEX idx_competitions_opponent ON competitions(opponent_id);
+CREATE INDEX idx_competitions_created ON competitions(created_at DESC);
+
+-- Competition matches
+CREATE TABLE competition_matches (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    competition_id UUID NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+    match_number INTEGER NOT NULL,
+    winner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_competition_matches_competition ON competition_matches(competition_id);
+
+-- User competition stats
+CREATE TABLE user_competition_stats (
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    rating INTEGER DEFAULT 1500,
+    wins INTEGER DEFAULT 0,
+    losses INTEGER DEFAULT 0,
+    total_matches INTEGER DEFAULT 0,
+    best_streak INTEGER DEFAULT 0,
+    current_streak INTEGER DEFAULT 0,
+    streak_type VARCHAR(10) DEFAULT 'none' CHECK (streak_type IN ('wins', 'losses', 'none')),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_user_competition_stats_rating ON user_competition_stats(rating DESC);
 
 -- ============================================
 -- PICKS & BETS
@@ -342,24 +424,117 @@ CREATE TABLE pool_participants (
 );
 
 -- ============================================
--- REFERRALS
+-- REFERRAL BADGES & ACHIEVEMENTS
+-- ============================================
+
+CREATE TABLE referral_badges (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    icon VARCHAR(50) NOT NULL,
+    category VARCHAR(50) NOT NULL CHECK (category IN ('milestone', 'tier', 'special')),
+    unlock_type VARCHAR(50) NOT NULL CHECK (unlock_type IN ('referral_count', 'coins_earned', 'subscription_conversion')),
+    unlock_value INTEGER,
+    
+    -- Badge properties
+    color VARCHAR(20),
+    rarity VARCHAR(20) CHECK (rarity IN ('common', 'uncommon', 'rare', 'epic', 'legendary')),
+    points INTEGER DEFAULT 0,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE user_referral_badges (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    badge_id VARCHAR(50) NOT NULL REFERENCES referral_badges(id),
+    unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    featured BOOLEAN DEFAULT FALSE,
+    
+    UNIQUE(user_id, badge_id),
+    UNIQUE(user_id, featured) WHERE featured = true
+);
+
+CREATE INDEX idx_user_referral_badges_user ON user_referral_badges(user_id);
+CREATE INDEX idx_user_referral_badges_badge ON user_referral_badges(badge_id);
+CREATE INDEX idx_user_referral_badges_featured ON user_referral_badges(featured);
+
+-- ============================================
+-- REFERRALS (Enhanced)
 -- ============================================
 
 CREATE TABLE referrals (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     referrer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    referred_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    
-    referral_code VARCHAR(20) UNIQUE NOT NULL,
-    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'expired')),
-    
+    referee_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code_used VARCHAR(50) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'completed', 'expired')),
     coins_earned INTEGER DEFAULT 0,
+    xp_earned INTEGER DEFAULT 0,
+    first_pick_at TIMESTAMP,
     completed_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(referee_id)
 );
 
 CREATE INDEX idx_referrals_referrer ON referrals(referrer_id);
-CREATE INDEX idx_referrals_code ON referrals(referral_code);
+CREATE INDEX idx_referrals_referee ON referrals(referee_id);
+CREATE INDEX idx_referrals_status ON referrals(status);
+CREATE INDEX idx_referrals_code ON referrals(code_used);
+
+-- Referral events tracking
+CREATE TABLE referral_events (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    event_type VARCHAR(50) NOT NULL,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_referral_events_user ON referral_events(user_id);
+CREATE INDEX idx_referral_events_type ON referral_events(event_type);
+
+-- ============================================
+-- LEADERBOARDS
+-- ============================================
+
+CREATE TABLE leaderboard_entries (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    leaderboard_type VARCHAR(50) NOT NULL CHECK (leaderboard_type IN ('referrals', 'coins', 'wins', 'streak', 'weekly')),
+    
+    rank INTEGER NOT NULL,
+    value INTEGER NOT NULL,
+    previous_rank INTEGER,
+    
+    period_start DATE,
+    period_end DATE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(user_id, leaderboard_type, period_start)
+);
+
+CREATE INDEX idx_leaderboard_type ON leaderboard_entries(leaderboard_type);
+CREATE INDEX idx_leaderboard_rank ON leaderboard_entries(leaderboard_type, rank);
+CREATE INDEX idx_leaderboard_period ON leaderboard_entries(period_start, period_end);
+
+-- ============================================
+-- COIN TRANSACTIONS
+-- ============================================
+
+CREATE TABLE coin_transactions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    amount INTEGER NOT NULL,
+    type VARCHAR(50) NOT NULL CHECK (type IN ('earn', 'spend', 'refund', 'bonus', 'referral', 'achievement', 'challenge', 'daily')),
+    description TEXT,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_coin_transactions_user ON coin_transactions(user_id);
+CREATE INDEX idx_coin_transactions_type ON coin_transactions(type);
+CREATE INDEX idx_coin_transactions_created ON coin_transactions(created_at DESC);
 
 -- ============================================
 -- NOTIFICATIONS
@@ -460,8 +635,60 @@ CREATE TRIGGER update_stats_on_pick_result AFTER UPDATE ON picks
 -- Insert default challenges (will be populated by seed script)
 -- Insert shop items (will be populated by seed script)
 
+-- ============================================
+-- REFERRALS & REWARDS
+-- ============================================
+
+CREATE TABLE referrals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    referrer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    referee_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code_used VARCHAR(50) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'completed', 'expired')),
+    coins_earned INTEGER DEFAULT 0,
+    xp_earned INTEGER DEFAULT 0,
+    first_pick_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(referee_id) -- Each user can only be referred once
+);
+
+CREATE INDEX idx_referrals_referrer ON referrals(referrer_id);
+CREATE INDEX idx_referrals_referee ON referrals(referee_id);
+CREATE INDEX idx_referrals_status ON referrals(status);
+CREATE INDEX idx_referrals_code ON referrals(code_used);
+
+-- Referral events tracking
+CREATE TABLE referral_events (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    event_type VARCHAR(50) NOT NULL,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_referral_events_user ON referral_events(user_id);
+CREATE INDEX idx_referral_events_type ON referral_events(event_type);
+
+-- Coin transactions for tracking all coin movements
+CREATE TABLE coin_transactions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    amount INTEGER NOT NULL,
+    type VARCHAR(50) NOT NULL CHECK (type IN ('earn', 'spend', 'refund', 'bonus', 'referral', 'achievement', 'challenge', 'daily')),
+    description TEXT,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_coin_transactions_user ON coin_transactions(user_id);
+CREATE INDEX idx_coin_transactions_type ON coin_transactions(type);
+CREATE INDEX idx_coin_transactions_created ON coin_transactions(created_at DESC);
+
 -- Create indexes for performance
 CREATE INDEX idx_users_created_at ON users(created_at DESC);
+CREATE INDEX idx_users_referral_code ON users(referral_code);
+CREATE INDEX idx_users_referred_by ON users(referred_by);
 CREATE INDEX idx_picks_created_at ON picks(created_at DESC);
 CREATE INDEX idx_activity_feed_composite ON activity_feed(user_id, created_at DESC);
 
