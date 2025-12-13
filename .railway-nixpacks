@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["nodejs-18_x", "postgresql"]
+
+[phases.install]
+cmds = ["npm install --production"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "npm start"

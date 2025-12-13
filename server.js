@@ -15,7 +15,7 @@ require('dotenv').config();
 // Load routes with error handling
 let authRoutes, twoFactorRoutes, userRoutes, socialRoutes, achievementsRoutes, analyticsRoutes;
 let oddsRoutes, scoresRoutes, aiCoachesRoutes, aiChatRoutes, subscriptionsRoutes, adminRoutes;
-let initCoachesRoutes, initCoachesGetRoutes, checkCoachesRoutes, shopRoutes;
+let initCoachesRoutes, initCoachesGetRoutes, checkCoachesRoutes, shopRoutes, betsRoutes;
 
 try {
     authRoutes = require('./routes/auth');
@@ -145,6 +145,24 @@ try {
     shopRoutes = require('express').Router();
 }
 
+try {
+    betsRoutes = require('./routes/bets');
+    console.log('✅ Bet tracking routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load bet tracking routes:', e.message);
+    betsRoutes = require('express').Router();
+}
+
+let passwordResetRoutes;
+
+try {
+    passwordResetRoutes = require('./routes/password-reset');
+    console.log('✅ Password reset routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load password reset routes:', e.message);
+    passwordResetRoutes = require('express').Router();
+}
+
 // Load middleware with error handling
 let authenticateToken, errorHandler, setupWebSocket, initializeLiveDashboard;
 let apiLimiter, authLimiter, paymentLimiter, corsOptions, securityHeaders, sanitizeInput, securityLogger;
@@ -222,8 +240,11 @@ const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: function(origin, callback) {
-            // Allow all Rosebud domains and localhost
-            if (!origin || origin.includes('rosebud.ai') || origin.includes('localhost')) {
+            // Allow all Rosebud domains, playground gateway, and localhost
+            if (!origin || 
+                origin.includes('rosebud.ai') || 
+                origin.includes('playground-gateway') || 
+                origin.includes('localhost')) {
                 callback(null, true);
             } else {
                 callback(null, true); // Allow anyway for development
@@ -872,6 +893,8 @@ app.use('/api/scores', scoresRoutes); // Public route for live scores
 app.use('/api/ai-coaches', aiCoachesRoutes); // AI Coaches with real data
 app.use('/api/ai-chat', aiChatRoutes); // AI Chat with super intelligence
 app.use('/api/subscriptions', subscriptionsRoutes); // Subscription management
+app.use('/api/bets', authenticateToken, betsRoutes); // Live bet tracking with auto-grading
+app.use('/api/password-reset', passwordResetRoutes); // Password reset & change
 // app.use('/api/tournaments', authenticateToken, tournamentsRoutes); // Tournament management - TEMP DISABLED
 app.use('/api/shop', shopRoutes); // Shop & Daily Deals system
 // app.use('/api/referrals', referralsRoutes); // Referral program with rewards - TEMP DISABLED
