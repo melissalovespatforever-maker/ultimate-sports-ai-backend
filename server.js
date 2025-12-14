@@ -12,16 +12,28 @@ const http = require('http');
 const { Server } = require('socket.io');
 require('dotenv').config();
 
+console.log('🚀 Starting backend initialization...');
+console.log(`📍 Node.js version: ${process.version}`);
+console.log(`📍 Environment: ${process.env.NODE_ENV || 'production'}`);
+
+// Catch any synchronous errors during module loading
+process.on('uncaughtException', (error) => {
+    console.error('❌ UNCAUGHT EXCEPTION during startup:', error.message);
+    console.error(error.stack);
+});
+
 // Load routes with error handling
 let authRoutes, twoFactorRoutes, userRoutes, socialRoutes, achievementsRoutes, analyticsRoutes;
 let oddsRoutes, scoresRoutes, aiCoachesRoutes, aiChatRoutes, subscriptionsRoutes, adminRoutes;
 let initCoachesRoutes, initCoachesGetRoutes, checkCoachesRoutes, shopRoutes, betsRoutes;
 
 try {
+    console.log('📍 Loading auth routes...');
     authRoutes = require('./routes/auth');
     console.log('✅ Auth routes loaded');
 } catch (e) {
     console.error('❌ Failed to load auth routes:', e.message);
+    console.error('   Stack:', e.stack);
     authRoutes = require('express').Router();
 }
 
@@ -163,10 +175,14 @@ try {
     passwordResetRoutes = require('express').Router();
 }
 
+console.log('✅ All route files loaded successfully');
+
 // Load middleware with error handling
 let authenticateToken, errorHandler, setupWebSocket, initializeLiveDashboard;
 let apiLimiter, authLimiter, paymentLimiter, corsOptions, securityHeaders, sanitizeInput, securityLogger;
 let pool;
+
+console.log('📍 Loading middleware...');
 
 try {
     const authMiddleware = require('./middleware/auth');
@@ -225,6 +241,8 @@ try {
     securityLogger = (req, res, next) => next();
 }
 
+console.log('✅ All middleware loaded');
+
 try {
     const database = require('./config/database');
     pool = database.pool;
@@ -234,8 +252,11 @@ try {
     console.error('❌ Failed to load database:', e.message);
 }
 
+console.log('📍 Initializing Express app...');
+
 // Initialize Express app
 const app = express();
+console.log('✅ Express app created');
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
@@ -916,6 +937,8 @@ app.use((req, res) => {
 // Error handler
 app.use(errorHandler);
 
+console.log('✅ All routes mounted successfully');
+
 // Global error handler to catch any unhandled errors
 process.on('uncaughtException', (error) => {
     console.error('❌ UNCAUGHT EXCEPTION:', error);
@@ -929,8 +952,19 @@ process.on('unhandledRejection', (reason, promise) => {
 // WEBSOCKET SETUP
 // ============================================
 
-setupWebSocket(io);
-initializeLiveDashboard(io);
+try {
+    setupWebSocket(io);
+    console.log('✅ WebSocket setup complete');
+} catch (e) {
+    console.warn('⚠️  WebSocket setup warning:', e.message);
+}
+
+try {
+    initializeLiveDashboard(io);
+    console.log('✅ Live dashboard initialization complete');
+} catch (e) {
+    console.warn('⚠️  Live dashboard initialization warning:', e.message);
+}
 
 // ============================================
 // SERVER START
@@ -938,7 +972,22 @@ initializeLiveDashboard(io);
 
 const PORT = process.env.PORT || 3001;
 
-server.listen(PORT, () => {
+// Initialize database before listening
+console.log('📍 Initializing database...');
+ensureDatabaseInitialized().then(() => {
+    console.log('✅ Database initialization promise resolved');
+}).catch((err) => {
+    console.warn('⚠️  Database initialization warning:', err.message);
+});
+
+console.log('📍 Starting server on port', PORT);
+
+server.on('error', (err) => {
+    console.error('❌ Server error:', err.message);
+    process.exit(1);
+});
+
+server.listen(PORT, '0.0.0.0', () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🏈 Ultimate Sports AI Backend Server');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -947,6 +996,7 @@ server.listen(PORT, () => {
     console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
     console.log(`⚡ WebSocket server ready`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ Server is ready to accept connections');
 });
 
 // Graceful shutdown
