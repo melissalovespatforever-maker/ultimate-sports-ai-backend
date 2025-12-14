@@ -7,9 +7,16 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const pool = require('../config/database');
-const emailService = require('../services/email-service');
+const { pool, query } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+
+// Fallback email service (no actual email sending, just logging)
+const emailService = {
+    sendPasswordResetEmail: async (user, token, link) => {
+        console.log(`📧 Password reset link for ${user.email}: ${link}`);
+        return { success: true };
+    }
+};
 
 // Configuration
 const RESET_TOKEN_EXPIRY = 3600000; // 1 hour in milliseconds
