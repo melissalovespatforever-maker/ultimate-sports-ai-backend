@@ -1,11 +1,14 @@
 [phases.setup]
-nixPkgs = ["nodejs-18_x", "postgresql"]
+nixPkgs = ["nodejs_24", "npm-9_x", "postgresql_16"]
 
 [phases.install]
-cmds = ["npm install --production"]
+cmds = ["cd backend && npm install --production"]
 
 [phases.build]
 cmds = []
 
+[phases.release]
+cmds = ["node backend/scripts/run-migration.js"]
+
 [start]
-cmd = "npm start"
+cmd = "cd backend && npm start"
