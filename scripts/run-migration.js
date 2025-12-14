@@ -13,8 +13,32 @@ async function runMigration() {
     try {
         console.log('🚀 Starting AI Coaches Migration...\n');
         
-        // Read migration file
-        const migrationPath = path.join(__dirname, '../migrations/003_ai_coaches_performance.sql');
+        // Read migration file - handle both local and Railway contexts
+        let migrationPath;
+        const possiblePaths = [
+            path.join(__dirname, '../migrations/003_ai_coaches_performance.sql'),  // Local development (/backend/scripts)
+            '/app/backend/migrations/003_ai_coaches_performance.sql',              // Railway with backend folder
+            '/app/migrations/003_ai_coaches_performance.sql',                      // Alternative Railway path
+            path.join('/app', 'backend', 'migrations', '003_ai_coaches_performance.sql') // Explicit path
+        ];
+        
+        console.log(`📍 Looking for migration file. Current __dirname: ${__dirname}`);
+        
+        for (const filepath of possiblePaths) {
+            console.log(`   Checking: ${filepath}`);
+            if (fs.existsSync(filepath)) {
+                console.log(`   ✅ Found!`);
+                migrationPath = filepath;
+                break;
+            }
+        }
+        
+        if (!migrationPath) {
+            console.error(`❌ Migration file not found at any of these locations:`);
+            possiblePaths.forEach(p => console.error(`   - ${p}`));
+            throw new Error(`Migration file not found`);
+        }
+        
         const migration = fs.readFileSync(migrationPath, 'utf8');
         
         console.log('📖 Migration file loaded');
