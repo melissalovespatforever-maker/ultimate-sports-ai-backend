@@ -4,7 +4,7 @@
   "description": "Backend server for Ultimate Sports AI platform",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node server-simple.js",
     "dev": "nodemon server.js",
     "db:init": "node scripts/init-database.js",
     "db:reset": "node scripts/init-database.js",
