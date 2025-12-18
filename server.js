@@ -13,7 +13,6 @@ const { Server } = require('socket.io');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
-const twoFactorRoutes = require('./routes/two-factor');
 const userRoutes = require('./routes/users');
 const socialRoutes = require('./routes/social');
 const achievementsRoutes = require('./routes/achievements');
@@ -21,15 +20,13 @@ const analyticsRoutes = require('./routes/analytics');
 const oddsRoutes = require('./routes/odds');
 const scoresRoutes = require('./routes/scores');
 const aiCoachesRoutes = require('./routes/ai-coaches');
-const aiChatRoutes = require('./routes/ai-chat'); // AI Chat with intelligence
 const subscriptionsRoutes = require('./routes/subscriptions');
 const adminRoutes = require('./routes/admin');
 const initCoachesRoutes = require('./routes/init-coaches');
 const initCoachesGetRoutes = require('./routes/init-coaches-get');
 const checkCoachesRoutes = require('./routes/check-coaches');
-// const tournamentsRoutes = require('./routes/tournaments'); // TEMP DISABLED - router issues
 const shopRoutes = require('./routes/shop');
-// const referralsRoutes = require('./routes/referrals'); // TEMP DISABLED - persistent issues
+const referralsRoutes = require('./routes/referrals');
 // const runReferralMigrationRoute = require('./routes/run-referral-migration'); // TEMP DISABLED
 // const pushNotificationsRoutes = require('./routes/push-notifications'); // TEMP DISABLED FOR DEPLOYMENT
 
@@ -94,16 +91,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Input sanitization (prevent NoSQL injection)
 app.use(sanitizeInput);
-
-// HTTPS redirect (production only)
-if (process.env.NODE_ENV === 'production') {
-    app.use((req, res, next) => {
-        if (req.header('x-forwarded-proto') !== 'https') {
-            return res.redirect(`https://${req.header('host')}${req.url}`);
-        }
-        next();
-    });
-}
 
 // General API rate limiting
 app.use('/api/', apiLimiter);
@@ -674,7 +661,6 @@ app.use(async (req, res, next) => {
 });
 
 app.use('/api/auth', authRoutes);
-app.use('/api/2fa', twoFactorRoutes); // Two-factor authentication
 app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/social', authenticateToken, socialRoutes);
 app.use('/api/achievements', authenticateToken, achievementsRoutes);
@@ -682,11 +668,10 @@ app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/odds', oddsRoutes); // Public route for odds data
 app.use('/api/scores', scoresRoutes); // Public route for live scores
 app.use('/api/ai-coaches', aiCoachesRoutes); // AI Coaches with real data
-app.use('/api/ai-chat', aiChatRoutes); // AI Chat with super intelligence
 app.use('/api/subscriptions', subscriptionsRoutes); // Subscription management
 // app.use('/api/tournaments', authenticateToken, tournamentsRoutes); // Tournament management - TEMP DISABLED
 app.use('/api/shop', shopRoutes); // Shop & Daily Deals system
-// app.use('/api/referrals', referralsRoutes); // Referral program with rewards - TEMP DISABLED
+app.use('/api/referrals', referralsRoutes); // Referral program with rewards
 // app.use('/api/notifications', pushNotificationsRoutes); // Push notifications (native iOS/Android + web) - TEMP DISABLED
 app.use('/api/admin', adminRoutes); // Admin panel routes
 app.use('/api/init-coaches', initCoachesRoutes); // Initialize coaches tables (POST method)
