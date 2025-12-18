@@ -25,10 +25,9 @@ const adminRoutes = require('./routes/admin');
 const initCoachesRoutes = require('./routes/init-coaches');
 const initCoachesGetRoutes = require('./routes/init-coaches-get');
 const checkCoachesRoutes = require('./routes/check-coaches');
+const tournamentsRoutes = require('./routes/tournaments');
 const shopRoutes = require('./routes/shop');
-const referralsRoutes = require('./routes/referrals');
-// const runReferralMigrationRoute = require('./routes/run-referral-migration'); // TEMP DISABLED
-// const pushNotificationsRoutes = require('./routes/push-notifications'); // TEMP DISABLED FOR DEPLOYMENT
+const pushNotificationsRoutes = require('./routes/push-notifications');
 
 const { authenticateToken } = require('./middleware/auth');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -669,15 +668,13 @@ app.use('/api/odds', oddsRoutes); // Public route for odds data
 app.use('/api/scores', scoresRoutes); // Public route for live scores
 app.use('/api/ai-coaches', aiCoachesRoutes); // AI Coaches with real data
 app.use('/api/subscriptions', subscriptionsRoutes); // Subscription management
-// app.use('/api/tournaments', authenticateToken, tournamentsRoutes); // Tournament management - TEMP DISABLED
+app.use('/api/tournaments', authenticateToken, tournamentsRoutes); // Tournament management with coin validation
 app.use('/api/shop', shopRoutes); // Shop & Daily Deals system
-app.use('/api/referrals', referralsRoutes); // Referral program with rewards
-// app.use('/api/notifications', pushNotificationsRoutes); // Push notifications (native iOS/Android + web) - TEMP DISABLED
+app.use('/api/notifications', pushNotificationsRoutes); // Push notifications (native iOS/Android + web)
 app.use('/api/admin', adminRoutes); // Admin panel routes
 app.use('/api/init-coaches', initCoachesRoutes); // Initialize coaches tables (POST method)
 app.use('/api/init-coaches-now', initCoachesGetRoutes); // Initialize coaches tables (GET method - just visit URL)
 app.use('/api/check-coaches', checkCoachesRoutes); // Check coaches database status
-// app.use('/api/run-referral-migration', runReferralMigrationRoute); // Run referral migration (GET - visit in browser) - TEMP DISABLED
 
 // 404 handler
 app.use((req, res) => {
