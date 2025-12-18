@@ -12,49 +12,260 @@ const http = require('http');
 const { Server } = require('socket.io');
 require('dotenv').config();
 
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const socialRoutes = require('./routes/social');
-const achievementsRoutes = require('./routes/achievements');
-const analyticsRoutes = require('./routes/analytics');
-const oddsRoutes = require('./routes/odds');
-const scoresRoutes = require('./routes/scores');
-const aiCoachesRoutes = require('./routes/ai-coaches');
-const subscriptionsRoutes = require('./routes/subscriptions');
-const adminRoutes = require('./routes/admin');
-const initCoachesRoutes = require('./routes/init-coaches');
-const initCoachesGetRoutes = require('./routes/init-coaches-get');
-const checkCoachesRoutes = require('./routes/check-coaches');
-const tournamentsRoutes = require('./routes/tournaments');
-const shopRoutes = require('./routes/shop');
-const pushNotificationsRoutes = require('./routes/push-notifications');
+console.log('🚀 Starting backend initialization...');
+console.log(`📍 Node.js version: ${process.version}`);
+console.log(`📍 Environment: ${process.env.NODE_ENV || 'production'}`);
 
-const { authenticateToken } = require('./middleware/auth');
-const { errorHandler } = require('./middleware/errorHandler');
-const { setupWebSocket } = require('./websocket/handler');
-const {
-    apiLimiter,
-    authLimiter,
-    paymentLimiter,
-    corsOptions,
-    securityHeaders,
-    sanitizeInput,
-    securityLogger
-} = require('./middleware/security');
+// Catch any synchronous errors during module loading
+process.on('uncaughtException', (error) => {
+    console.error('❌ UNCAUGHT EXCEPTION during startup:', error.message);
+    console.error(error.stack);
+});
 
-// Initialize database pool globally for coaches route
-const { pool } = require('./config/database');
-global.db = pool;
-console.log('✅ Database pool exposed globally');
+// Load routes with error handling
+let authRoutes, twoFactorRoutes, userRoutes, socialRoutes, achievementsRoutes, analyticsRoutes;
+let oddsRoutes, scoresRoutes, aiCoachesRoutes, aiChatRoutes, subscriptionsRoutes, adminRoutes;
+let initCoachesRoutes, initCoachesGetRoutes, checkCoachesRoutes, shopRoutes, betsRoutes;
+
+try {
+    console.log('📍 Loading auth routes...');
+    authRoutes = require('./routes/auth');
+    console.log('✅ Auth routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load auth routes:', e.message);
+    console.error('   Stack:', e.stack);
+    authRoutes = require('express').Router();
+}
+
+try {
+    twoFactorRoutes = require('./routes/two-factor');
+    console.log('✅ Two-factor routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load two-factor routes:', e.message);
+    twoFactorRoutes = require('express').Router();
+}
+
+try {
+    userRoutes = require('./routes/users');
+    console.log('✅ User routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load user routes:', e.message);
+    userRoutes = require('express').Router();
+}
+
+try {
+    socialRoutes = require('./routes/social');
+    console.log('✅ Social routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load social routes:', e.message);
+    socialRoutes = require('express').Router();
+}
+
+try {
+    achievementsRoutes = require('./routes/achievements');
+    console.log('✅ Achievements routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load achievements routes:', e.message);
+    achievementsRoutes = require('express').Router();
+}
+
+try {
+    analyticsRoutes = require('./routes/analytics');
+    console.log('✅ Analytics routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load analytics routes:', e.message);
+    analyticsRoutes = require('express').Router();
+}
+
+try {
+    oddsRoutes = require('./routes/odds');
+    console.log('✅ Odds routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load odds routes:', e.message);
+    oddsRoutes = require('express').Router();
+}
+
+try {
+    scoresRoutes = require('./routes/scores');
+    console.log('✅ Scores routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load scores routes:', e.message);
+    scoresRoutes = require('express').Router();
+}
+
+try {
+    aiCoachesRoutes = require('./routes/ai-coaches');
+    console.log('✅ AI Coaches routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load ai-coaches routes:', e.message);
+    aiCoachesRoutes = require('express').Router();
+}
+
+try {
+    aiChatRoutes = require('./routes/ai-chat');
+    console.log('✅ AI Chat routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load ai-chat routes:', e.message);
+    aiChatRoutes = require('express').Router();
+}
+
+try {
+    subscriptionsRoutes = require('./routes/subscriptions');
+    console.log('✅ Subscriptions routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load subscriptions routes:', e.message);
+    subscriptionsRoutes = require('express').Router();
+}
+
+try {
+    adminRoutes = require('./routes/admin');
+    console.log('✅ Admin routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load admin routes:', e.message);
+    adminRoutes = require('express').Router();
+}
+
+try {
+    initCoachesRoutes = require('./routes/init-coaches');
+    console.log('✅ Init coaches routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load init-coaches routes:', e.message);
+    initCoachesRoutes = require('express').Router();
+}
+
+try {
+    initCoachesGetRoutes = require('./routes/init-coaches-get');
+    console.log('✅ Init coaches GET routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load init-coaches-get routes:', e.message);
+    initCoachesGetRoutes = require('express').Router();
+}
+
+try {
+    checkCoachesRoutes = require('./routes/check-coaches');
+    console.log('✅ Check coaches routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load check-coaches routes:', e.message);
+    checkCoachesRoutes = require('express').Router();
+}
+
+try {
+    shopRoutes = require('./routes/shop');
+    console.log('✅ Shop routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load shop routes:', e.message);
+    shopRoutes = require('express').Router();
+}
+
+try {
+    betsRoutes = require('./routes/bets');
+    console.log('✅ Bet tracking routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load bet tracking routes:', e.message);
+    betsRoutes = require('express').Router();
+}
+
+let passwordResetRoutes;
+
+try {
+    passwordResetRoutes = require('./routes/password-reset');
+    console.log('✅ Password reset routes loaded');
+} catch (e) {
+    console.error('❌ Failed to load password reset routes:', e.message);
+    passwordResetRoutes = require('express').Router();
+}
+
+console.log('✅ All route files loaded successfully');
+
+// Load middleware with error handling
+let authenticateToken, errorHandler, setupWebSocket, initializeLiveDashboard;
+let apiLimiter, authLimiter, paymentLimiter, corsOptions, securityHeaders, sanitizeInput, securityLogger;
+let pool;
+
+console.log('📍 Loading middleware...');
+
+try {
+    const authMiddleware = require('./middleware/auth');
+    authenticateToken = authMiddleware.authenticateToken;
+    console.log('✅ Auth middleware loaded');
+} catch (e) {
+    console.error('❌ Failed to load auth middleware:', e.message);
+    authenticateToken = (req, res, next) => next();
+}
+
+try {
+    const errHandler = require('./middleware/errorHandler');
+    errorHandler = errHandler.errorHandler;
+    console.log('✅ Error handler loaded');
+} catch (e) {
+    console.error('❌ Failed to load error handler:', e.message);
+    errorHandler = (err, req, res, next) => res.status(500).json({ error: 'Server error' });
+}
+
+try {
+    const websocketHandler = require('./websocket/handler');
+    setupWebSocket = websocketHandler.setupWebSocket;
+    console.log('✅ WebSocket handler loaded');
+} catch (e) {
+    console.error('❌ Failed to load websocket handler:', e.message);
+    setupWebSocket = (io) => console.log('WebSocket handler skipped');
+}
+
+try {
+    const liveDashboardHandler = require('./websocket/live-dashboard-handler');
+    initializeLiveDashboard = liveDashboardHandler.initializeLiveDashboard;
+    console.log('✅ Live dashboard handler loaded');
+} catch (e) {
+    console.error('❌ Failed to load live dashboard handler:', e.message);
+    initializeLiveDashboard = (io) => console.log('Live dashboard handler skipped');
+}
+
+try {
+    const securityMiddleware = require('./middleware/security');
+    apiLimiter = securityMiddleware.apiLimiter;
+    authLimiter = securityMiddleware.authLimiter;
+    paymentLimiter = securityMiddleware.paymentLimiter;
+    corsOptions = securityMiddleware.corsOptions;
+    securityHeaders = securityMiddleware.securityHeaders;
+    sanitizeInput = securityMiddleware.sanitizeInput;
+    securityLogger = securityMiddleware.securityLogger;
+    console.log('✅ Security middleware loaded');
+} catch (e) {
+    console.error('❌ Failed to load security middleware:', e.message);
+    apiLimiter = (req, res, next) => next();
+    authLimiter = (req, res, next) => next();
+    paymentLimiter = (req, res, next) => next();
+    corsOptions = { origin: '*' };
+    securityHeaders = (req, res, next) => next();
+    sanitizeInput = (req, res, next) => next();
+    securityLogger = (req, res, next) => next();
+}
+
+console.log('✅ All middleware loaded');
+
+try {
+    const database = require('./config/database');
+    pool = database.pool;
+    global.db = pool;
+    console.log('✅ Database pool exposed globally');
+} catch (e) {
+    console.error('❌ Failed to load database:', e.message);
+}
+
+console.log('📍 Initializing Express app...');
 
 // Initialize Express app
 const app = express();
+console.log('✅ Express app created');
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: function(origin, callback) {
-            // Allow all Rosebud domains and localhost
-            if (!origin || origin.includes('rosebud.ai') || origin.includes('localhost')) {
+            // Allow all Rosebud domains, playground gateway, and localhost
+            if (!origin || 
+                origin.includes('rosebud.ai') || 
+                origin.includes('playground-gateway') || 
+                origin.includes('localhost')) {
                 callback(null, true);
             } else {
                 callback(null, true); // Allow anyway for development
@@ -90,6 +301,16 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Input sanitization (prevent NoSQL injection)
 app.use(sanitizeInput);
+
+// HTTPS redirect (production only)
+if (process.env.NODE_ENV === 'production') {
+    app.use((req, res, next) => {
+        if (req.header('x-forwarded-proto') !== 'https') {
+            return res.redirect(`https://${req.header('host')}${req.url}`);
+        }
+        next();
+    });
+}
 
 // General API rate limiting
 app.use('/api/', apiLimiter);
@@ -272,7 +493,30 @@ app.get('/api/health', (req, res) => {
         uptime: process.uptime(),
         environment: process.env.NODE_ENV,
         version: '2.0.0',
+        oddsApiKey: process.env.THE_ODDS_API_KEY ? 'configured' : 'not_configured',
         database: dbInitialized ? 'ready' : 'initializing'
+    });
+});
+
+// ============================================
+// LIVE DASHBOARD API
+// ============================================
+
+// Get Odds API Key for Live Dashboard
+app.get('/api/live-dashboard/config', (req, res) => {
+    console.log('📊 Live Dashboard config requested');
+    res.json({
+        success: true,
+        oddsApiKey: process.env.THE_ODDS_API_KEY,
+        oddsApiUrl: 'https://api.the-odds-api.com/v4',
+        updateInterval: 30000,
+        sports: [
+            { key: 'basketball_nba', name: 'NBA', sport: 'basketball' },
+            { key: 'americanfootball_nfl', name: 'NFL', sport: 'americanfootball' },
+            { key: 'baseball_mlb', name: 'MLB', sport: 'baseball' },
+            { key: 'icehockey_nhl', name: 'NHL', sport: 'icehockey' },
+            { key: 'soccer_epl', name: 'Soccer', sport: 'soccer' }
+        ]
     });
 });
 
@@ -660,6 +904,7 @@ app.use(async (req, res, next) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/2fa', twoFactorRoutes); // Two-factor authentication
 app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/social', authenticateToken, socialRoutes);
 app.use('/api/achievements', authenticateToken, achievementsRoutes);
@@ -667,14 +912,19 @@ app.use('/api/analytics', authenticateToken, analyticsRoutes);
 app.use('/api/odds', oddsRoutes); // Public route for odds data
 app.use('/api/scores', scoresRoutes); // Public route for live scores
 app.use('/api/ai-coaches', aiCoachesRoutes); // AI Coaches with real data
+app.use('/api/ai-chat', aiChatRoutes); // AI Chat with super intelligence
 app.use('/api/subscriptions', subscriptionsRoutes); // Subscription management
-app.use('/api/tournaments', authenticateToken, tournamentsRoutes); // Tournament management with coin validation
+app.use('/api/bets', authenticateToken, betsRoutes); // Live bet tracking with auto-grading
+app.use('/api/password-reset', passwordResetRoutes); // Password reset & change
+// app.use('/api/tournaments', authenticateToken, tournamentsRoutes); // Tournament management - TEMP DISABLED
 app.use('/api/shop', shopRoutes); // Shop & Daily Deals system
-app.use('/api/notifications', pushNotificationsRoutes); // Push notifications (native iOS/Android + web)
+// app.use('/api/referrals', referralsRoutes); // Referral program with rewards - TEMP DISABLED
+// app.use('/api/notifications', pushNotificationsRoutes); // Push notifications (native iOS/Android + web) - TEMP DISABLED
 app.use('/api/admin', adminRoutes); // Admin panel routes
 app.use('/api/init-coaches', initCoachesRoutes); // Initialize coaches tables (POST method)
 app.use('/api/init-coaches-now', initCoachesGetRoutes); // Initialize coaches tables (GET method - just visit URL)
 app.use('/api/check-coaches', checkCoachesRoutes); // Check coaches database status
+// app.use('/api/run-referral-migration', runReferralMigrationRoute); // Run referral migration (GET - visit in browser) - TEMP DISABLED
 
 // 404 handler
 app.use((req, res) => {
@@ -686,6 +936,8 @@ app.use((req, res) => {
 
 // Error handler
 app.use(errorHandler);
+
+console.log('✅ All routes mounted successfully');
 
 // Global error handler to catch any unhandled errors
 process.on('uncaughtException', (error) => {
@@ -700,7 +952,19 @@ process.on('unhandledRejection', (reason, promise) => {
 // WEBSOCKET SETUP
 // ============================================
 
-setupWebSocket(io);
+try {
+    setupWebSocket(io);
+    console.log('✅ WebSocket setup complete');
+} catch (e) {
+    console.warn('⚠️  WebSocket setup warning:', e.message);
+}
+
+try {
+    initializeLiveDashboard(io);
+    console.log('✅ Live dashboard initialization complete');
+} catch (e) {
+    console.warn('⚠️  Live dashboard initialization warning:', e.message);
+}
 
 // ============================================
 // SERVER START
@@ -708,7 +972,22 @@ setupWebSocket(io);
 
 const PORT = process.env.PORT || 3001;
 
-server.listen(PORT, () => {
+// Initialize database before listening
+console.log('📍 Initializing database...');
+ensureDatabaseInitialized().then(() => {
+    console.log('✅ Database initialization promise resolved');
+}).catch((err) => {
+    console.warn('⚠️  Database initialization warning:', err.message);
+});
+
+console.log('📍 Starting server on port', PORT);
+
+server.on('error', (err) => {
+    console.error('❌ Server error:', err.message);
+    process.exit(1);
+});
+
+server.listen(PORT, '0.0.0.0', () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🏈 Ultimate Sports AI Backend Server');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -717,6 +996,7 @@ server.listen(PORT, () => {
     console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
     console.log(`⚡ WebSocket server ready`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ Server is ready to accept connections');
 });
 
 // Graceful shutdown
