@@ -472,17 +472,19 @@ CREATE INDEX IF NOT EXISTS idx_picks_sport ON coach_picks(sport);
 // ROUTES
 // ============================================
 
-// Health check (Railway monitoring)
+// Health check (Railway monitoring) - MUST respond immediately
 app.get('/health', (req, res) => {
-    res.json({
+     res.status(200).json({
         status: 'healthy',
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString(), 
         uptime: process.uptime(),
         environment: process.env.NODE_ENV,
         oddsApiConfigured: !!process.env.THE_ODDS_API_KEY,
-        databaseReady: dbInitialized
+        databaseReady: dbInitialized,
+        message: 'Backend is running'
     });
 });
+
 
 // API Health check
 app.get('/api/health', (req, res) => {
