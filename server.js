@@ -1,8 +1,3 @@
-// ============================================
-// ULTIMATE SPORTS AI - BACKEND SERVER
-// Node.js + Express + PostgreSQL
-// ============================================
-
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -16,13 +11,11 @@ console.log('🚀 Starting backend initialization...');
 console.log(`📍 Node.js version: ${process.version}`);
 console.log(`📍 Environment: ${process.env.NODE_ENV || 'production'}`);
 
-// Catch any synchronous errors during module loading
 process.on('uncaughtException', (error) => {
     console.error('❌ UNCAUGHT EXCEPTION during startup:', error.message);
     console.error(error.stack);
 });
 
-// Load routes with error handling
 let authRoutes, twoFactorRoutes, userRoutes, socialRoutes, achievementsRoutes, analyticsRoutes;
 let oddsRoutes, scoresRoutes, aiCoachesRoutes, aiChatRoutes, subscriptionsRoutes, adminRoutes;
 let initCoachesRoutes, initCoachesGetRoutes, checkCoachesRoutes, shopRoutes, betsRoutes;
@@ -176,7 +169,6 @@ try {
 
 console.log('✅ All route files loaded successfully');
 
-// Load middleware with error handling
 let authenticateToken, errorHandler, setupWebSocket, initializeLiveDashboard;
 let apiLimiter, authLimiter, paymentLimiter, corsOptions, securityHeaders, sanitizeInput, securityLogger;
 let pool;
@@ -198,7 +190,7 @@ try {
     console.log('✅ Error handler loaded');
 } catch (e) {
     console.error('❌ Failed to load error handler:', e.message);
-    errorHandler = (err, req, res, next) => res.status(500).json({ error: 'Server error' });
+    errorHandler = (err, req, res, next) => res.status(500).json({ error: "Server error" });
 }
 
 try {
@@ -207,7 +199,7 @@ try {
     console.log('✅ WebSocket handler loaded');
 } catch (e) {
     console.error('❌ Failed to load websocket handler:', e.message);
-    setupWebSocket = (io) => console.log('WebSocket handler skipped');
+    setupWebSocket = (io) => console.log("WebSocket handler skipped");
 }
 
 try {
@@ -216,7 +208,7 @@ try {
     console.log('✅ Live dashboard handler loaded');
 } catch (e) {
     console.error('❌ Failed to load live dashboard handler:', e.message);
-    initializeLiveDashboard = (io) => console.log('Live dashboard handler skipped');
+    initializeLiveDashboard = (io) => console.log("Live dashboard handler skipped");
 }
 
 try {
@@ -234,7 +226,7 @@ try {
     apiLimiter = (req, res, next) => next();
     authLimiter = (req, res, next) => next();
     paymentLimiter = (req, res, next) => next();
-    corsOptions = { origin: '*' };
+    corsOptions = { origin: "*" };
     securityHeaders = (req, res, next) => next();
     sanitizeInput = (req, res, next) => next();
     securityLogger = (req, res, next) => next();
@@ -253,59 +245,48 @@ try {
 
 console.log('📍 Initializing Express app...');
 
-// Initialize Express app
 const app = express();
 console.log('✅ Express app created');
 
-// Create HTTP server
 const server = http.createServer(app);
 console.log('✅ HTTP server created');
 
-// Initialize Socket.io with simple CORS (non-blocking)
 let io;
 try {
     io = new Server(server, {
-        cors: { origin: '*', methods: ['GET', 'POST'], credentials: true }
+        cors: { origin: "*", methods: ["GET", "POST"], credentials: true }
     });
     console.log('✅ Socket.io initialized');
 } catch (e) {
-    console.error('⚠️  Socket.io initialization warning:', e.message);
+    console.error("⚠️  Socket.io initialization warning:", e.message);
 }
-
-// ============================================
-// MIDDLEWARE
-// ============================================
 
 app.use(securityLogger);
 app.use(securityHeaders);
 app.use(cors(corsOptions));
 app.use(compression());
-app.set('trust proxy', 1);
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.set("trust proxy", 1);
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(sanitizeInput);
 
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === "production") {
     app.use((req, res, next) => {
-        if (req.header('x-forwarded-proto') !== 'https') {
-            return res.redirect(`https://${req.header('host')}${req.url}`);
+        if (req.header("x-forwarded-proto") !== "https") {
+            return res.redirect(`https://${req.header("host")}${req.url}`);
         }
         next();
     });
 }
 
-app.use('/api/', apiLimiter);
+app.use("/api/", apiLimiter);
 
-if (process.env.NODE_ENV === 'development') {
+if (process.env.NODE_ENV === "development") {
     app.use((req, res, next) => {
         console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
         next();
     });
 }
-
-// ============================================
-// DATABASE INITIALIZATION
-// ============================================
 
 let dbInitialized = false;
 let dbInitializationPromise = null;
@@ -326,7 +307,7 @@ async function ensureDatabaseInitialized() {
             const tableCheck = await pool.query(`
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables 
-                    WHERE table_name = 'coaches'
+                    WHERE table_name = "coaches"
                 )
             `);
             
@@ -346,17 +327,17 @@ CREATE TABLE IF NOT EXISTS coaches (
 );
 
 INSERT INTO coaches (id, name, specialty, avatar, tier, strategy) VALUES
-(1, 'The Analyst', 'basketball_nba', '🤖', 'PRO', 'value_betting'),
-(2, 'Sharp Shooter', 'americanfootball_nfl', '🏈', 'VIP', 'sharp_money'),
-(3, 'Data Dragon', 'baseball_mlb', '⚾', 'PRO', 'consensus'),
-(4, 'Ice Breaker', 'icehockey_nhl', '🏒', 'VIP', 'value_betting'),
-(5, 'El Futbolista', 'soccer_epl', '⚽', 'VIP', 'sharp_money'),
-(6, 'The Gridiron Guru', 'americanfootball_ncaaf', '🏈', 'PRO', 'consensus'),
-(7, 'Ace of Aces', 'tennis_atp', '🎾', 'PRO', 'value_betting'),
-(8, 'The Brawl Boss', 'mma_mixed_martial_arts', '🥊', 'VIP', 'sharp_money'),
-(9, 'The Green Master', 'golf_pga', '⛳', 'PRO', 'consensus'),
-(10, 'March Madness', 'basketball_ncaab', '🏀', 'PRO', 'value_betting'),
-(11, 'Pixel Prophet', 'esports_lol', '🎮', 'VIP', 'sharp_money')
+(1, "The Analyst", "basketball_nba", "🤖", "PRO", "value_betting"),
+(2, "Sharp Shooter", "americanfootball_nfl", "🏈", "VIP", "sharp_money"),
+(3, "Data Dragon", "baseball_mlb", "⚾", "PRO", "consensus"),
+(4, "Ice Breaker", "icehockey_nhl", "🏒", "VIP", "value_betting"),
+(5, "El Futbolista", "soccer_epl", "⚽", "VIP", "sharp_money"),
+(6, "The Gridiron Guru", "americanfootball_ncaaf", "🏈", "PRO", "consensus"),
+(7, "Ace of Aces", "tennis_atp", "🎾", "PRO", "value_betting"),
+(8, "The Brawl Boss", "mma_mixed_martial_arts", "🥊", "VIP", "sharp_money"),
+(9, "The Green Master", "golf_pga", "⛳", "PRO", "consensus"),
+(10, "March Madness", "basketball_ncaab", "🏀", "PRO", "value_betting"),
+(11, "Pixel Prophet", "esports_lol", "🎮", "VIP", "sharp_money")
 ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS coach_picks (
@@ -413,7 +394,7 @@ CREATE INDEX IF NOT EXISTS idx_picks_result ON coach_picks(result);
 CREATE INDEX IF NOT EXISTS idx_picks_sport ON coach_picks(sport);
 `;
 
-                const statements = migrationSQL.split(';').filter(s => s.trim());
+                const statements = migrationSQL.split(";").filter(s => s.trim());
                 for (const statement of statements) {
                     await pool.query(statement.trim());
                 }
@@ -428,7 +409,7 @@ CREATE INDEX IF NOT EXISTS idx_picks_sport ON coach_picks(sport);
             dbInitialized = true;
             return true;
         } catch (error) {
-            console.warn('⚠️  Database initialization warning:', error.message);
+            console.warn("⚠️  Database initialization warning:", error.message);
             dbInitialized = true;
             return false;
         }
@@ -437,121 +418,100 @@ CREATE INDEX IF NOT EXISTS idx_picks_sport ON coach_picks(sport);
     return dbInitializationPromise;
 }
 
-// ============================================
-// ROUTES
-// ============================================
-
-// Health check (Railway monitoring) - MUST respond immediately
-app.get('/health', (req, res) => {
+app.get("/health", (req, res) => {
     res.status(200).json({
-        status: 'healthy',
+        status: "healthy",
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         environment: process.env.NODE_ENV,
         oddsApiConfigured: !!process.env.THE_ODDS_API_KEY,
         databaseReady: dbInitialized,
-        message: 'Backend is running'
+        message: "Backend is running"
     });
 });
 
-// API Health check
-app.get('/api/health', (req, res) => {
+app.get("/api/health", (req, res) => {
     res.json({
-        status: 'healthy',
-        service: 'ultimate-sports-ai-backend',
+        status: "healthy",
+        service: "ultimate-sports-ai-backend",
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         environment: process.env.NODE_ENV,
-        version: '2.0.0',
-        oddsApiKey: process.env.THE_ODDS_API_KEY ? 'configured' : 'not_configured',
-        database: dbInitialized ? 'ready' : 'initializing'
+        version: "2.0.0",
+        oddsApiKey: process.env.THE_ODDS_API_KEY ? "configured" : "not_configured",
+        database: dbInitialized ? "ready" : "initializing"
     });
 });
 
-// Live Dashboard config
-app.get('/api/live-dashboard/config', (req, res) => {
-    console.log('📊 Live Dashboard config requested');
+app.get("/api/live-dashboard/config", (req, res) => {
+    console.log("📊 Live Dashboard config requested");
     res.json({
         success: true,
         oddsApiKey: process.env.THE_ODDS_API_KEY,
-        oddsApiUrl: 'https://api.the-odds-api.com/v4',
+        oddsApiUrl: "https://api.the-odds-api.com/v4",
         updateInterval: 30000,
         sports: [
-            { key: 'basketball_nba', name: 'NBA', sport: 'basketball' },
-            { key: 'americanfootball_nfl', name: 'NFL', sport: 'americanfootball' },
-            { key: 'baseball_mlb', name: 'MLB', sport: 'baseball' },
-            { key: 'icehockey_nhl', name: 'NHL', sport: 'icehockey' },
-            { key: 'soccer_epl', name: 'Soccer', sport: 'soccer' }
+            { key: "basketball_nba", name: "NBA", sport: "basketball" },
+            { key: "americanfootball_nfl", name: "NFL", sport: "americanfootball" },
+            { key: "baseball_mlb", name: "MLB", sport: "baseball" },
+            { key: "icehockey_nhl", name: "NHL", sport: "icehockey" },
+            { key: "soccer_epl", name: "Soccer", sport: "soccer" }
         ]
     });
 });
 
-// Debug config
-app.get('/api/debug/config', (req, res) => {
+app.get("/api/debug/config", (req, res) => {
     res.json({
         environment: process.env.NODE_ENV,
         nodeVersion: process.version,
         oddsApiConfigured: !!process.env.THE_ODDS_API_KEY,
-        oddsApiKeyPreview: process.env.THE_ODDS_API_KEY ? `${process.env.THE_ODDS_API_KEY.substring(0, 10)}...` : 'NOT SET',
+        oddsApiKeyPreview: process.env.THE_ODDS_API_KEY ? `${process.env.THE_ODDS_API_KEY.substring(0, 10)}...` : "NOT SET",
         timestamp: new Date().toISOString()
     });
 });
 
-// Database health check
-app.get('/api/debug/database', async (req, res) => {
+app.get("/api/debug/database", async (req, res) => {
     try {
         const { pool } = require('./config/database');
-        const result = await pool.query('SELECT NOW()');
+        const result = await pool.query("SELECT NOW()");
         res.json({
-            status: 'connected',
+            status: "connected",
             database_time: result.rows[0].now,
             timestamp: new Date().toISOString()
         });
     } catch (error) {
         res.status(500).json({
-            status: 'error',
+            status: "error",
             message: error.message,
-            database_url: process.env.DATABASE_URL ? '✅ SET' : '❌ NOT SET',
+            database_url: process.env.DATABASE_URL ? "✅ SET" : "❌ NOT SET",
             timestamp: new Date().toISOString()
         });
     }
 });
 
-// Test endpoint
-app.get('/api/test/games', (req, res) => {
+app.get("/api/test/games", (req, res) => {
     res.json({
         success: true,
-        message: 'Backend API is working! 🎉',
+        message: "Backend API is working!",
         data: {
             games: [
                 {
                     id: 1,
-                    league: 'NBA',
-                    home_team: 'Lakers',
-                    away_team: 'Celtics',
-                    status: 'live',
+                    league: "NBA",
+                    home_team: "Lakers",
+                    away_team: "Celtics",
+                    status: "live",
                     home_score: 98,
                     away_score: 105,
-                    time_remaining: '5:30'
-                },
-                {
-                    id: 2,
-                    league: 'NFL',
-                    home_team: 'Cowboys',
-                    away_team: 'Chiefs',
-                    status: 'upcoming',
-                    home_score: 0,
-                    away_score: 0,
-                    time_remaining: 'In 2h'
+                    time_remaining: "5:30"
                 }
             ]
         }
     });
 });
 
-// Emergency fallback - AI Coaches Picks
-app.get('/api/ai-coaches/picks', (req, res) => {
-    console.log('🎲 Fallback picks endpoint called');
+app.get("/api/ai-coaches/picks", (req, res) => {
+    console.log("🎲 Fallback picks endpoint called");
     
     res.json({
         success: true,
@@ -560,35 +520,79 @@ app.get('/api/ai-coaches/picks', (req, res) => {
         coaches: [
             {
                 id: 1,
-                name: 'The Analyst',
-                specialty: 'basketball_nba',
-                avatar: '🤖',
-                tier: 'PRO',
-                strategy: 'value_betting',
+                name: "The Analyst",
+                specialty: "basketball_nba",
+                avatar: "🤖",
+                tier: "PRO",
                 accuracy: 74.2,
                 totalPicks: 547,
-                streak: 12,
-                recentPicks: [
-                    {
-                        game: 'Lakers @ Celtics',
-                        pick: 'Lakers -5.5',
-                        odds: -115,
-                        confidence: 87,
-                        reasoning: 'Strong home court advantage and recent form'
-                    }
-                ]
-            },
-            {
-                id: 2,
-                name: 'Sharp Shooter',
-                specialty: 'americanfootball_nfl',
-                avatar: '🏈',
-                tier: 'VIP',
-                strategy: 'sharp_money',
-                accuracy: 71.8,
-                totalPicks: 423,
-                streak: 8,
-                recentPicks: [
-                    {
-                        game: 'Chiefs @ Ravens',
-                        pick: 'Chiefs ML
+                streak: 12
+            }
+        ]
+    });
+});
+
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/register", authLimiter);
+
+app.use(async (req, res, next) => {
+    if (!dbInitialized && !dbInitializationPromise) {
+        await ensureDatabaseInitialized();
+    }
+    next();
+});
+
+app.use("/api/auth", authRoutes);
+app.use("/api/2fa", twoFactorRoutes);
+app.use("/api/users", authenticateToken, userRoutes);
+app.use("/api/social", authenticateToken, socialRoutes);
+app.use("/api/achievements", authenticateToken, achievementsRoutes);
+app.use("/api/analytics", authenticateToken, analyticsRoutes);
+app.use("/api/odds", oddsRoutes);
+app.use("/api/scores", scoresRoutes);
+app.use("/api/ai-coaches", aiCoachesRoutes);
+app.use("/api/ai-chat", aiChatRoutes);
+app.use("/api/subscriptions", subscriptionsRoutes);
+app.use("/api/bets", authenticateToken, betsRoutes);
+app.use("/api/password-reset", passwordResetRoutes);
+app.use("/api/shop", shopRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/init-coaches", initCoachesRoutes);
+app.use("/api/init-coaches-now", initCoachesGetRoutes);
+app.use("/api/check-coaches", checkCoachesRoutes);
+
+app.use((req, res) => {
+    res.status(404).json({
+        error: "Not Found",
+        message: `Route ${req.method} ${req.path} not found`
+    });
+});
+
+app.use(errorHandler);
+
+console.log("✅ All routes mounted successfully");
+
+process.on("uncaughtException", (error) => {
+    console.error("❌ UNCAUGHT EXCEPTION:", error);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+    console.error("❌ UNHANDLED REJECTION at:", promise, "reason:", reason);
+});
+
+if (io) {
+    try {
+        setupWebSocket(io);
+        console.log("✅ WebSocket setup complete");
+    } catch (e) {
+        console.warn("⚠️  WebSocket setup warning:", e.message);
+    }
+
+    try {
+        initializeLiveDashboard(io);
+        console.log("✅ Live dashboard initialization complete");
+    } catch (e) {
+        console.warn("⚠️  Live dashboard initialization warning:", e.message);
+    }
+} else {
+    c
