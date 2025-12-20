@@ -33,7 +33,6 @@ try {
     console.log('✅ Auth routes loaded');
 } catch (e) {
     console.error('❌ Failed to load auth routes:', e.message);
-    console.error('   Stack:', e.stack);
     authRoutes = require('express').Router();
 }
 
@@ -257,52 +256,35 @@ console.log('📍 Initializing Express app...');
 // Initialize Express app
 const app = express();
 console.log('✅ Express app created');
+
+// Create HTTP server
 const server = http.createServer(app);
-const io = new Server(server, {
-    cors: {
-        origin: function(origin, callback) {
-            // Allow all Rosebud domains, playground gateway, and localhost
-            if (!origin || 
-                origin.includes('rosebud.ai') || 
-                origin.includes('playground-gateway') || 
-                origin.includes('localhost')) {
-                callback(null, true);
-            } else {
-                callback(null, true); // Allow anyway for development
-            }
-        },
-        methods: ['GET', 'POST'],
-        credentials: true
-    }
-});
+console.log('✅ HTTP server created');
+
+// Initialize Socket.io with simple CORS (non-blocking)
+let io;
+try {
+    io = new Server(server, {
+        cors: { origin: '*', methods: ['GET', 'POST'], credentials: true }
+    });
+    console.log('✅ Socket.io initialized');
+} catch (e) {
+    console.error('⚠️  Socket.io initialization warning:', e.message);
+}
 
 // ============================================
 // MIDDLEWARE
 // ============================================
 
-// Security logging (must be first)
 app.use(securityLogger);
-
-// Security headers
 app.use(securityHeaders);
-
-// CORS with enhanced security
 app.use(cors(corsOptions));
-
-// Compression
 app.use(compression());
-
-// Trust proxy (required for Railway, Render, Heroku)
 app.set('trust proxy', 1);
-
-// Body parsing with size limits
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Input sanitization (prevent NoSQL injection)
 app.use(sanitizeInput);
 
-// HTTPS redirect (production only)
 if (process.env.NODE_ENV === 'production') {
     app.use((req, res, next) => {
         if (req.header('x-forwarded-proto') !== 'https') {
@@ -312,10 +294,8 @@ if (process.env.NODE_ENV === 'production') {
     });
 }
 
-// General API rate limiting
 app.use('/api/', apiLimiter);
 
-// Request logging (development)
 if (process.env.NODE_ENV === 'development') {
     app.use((req, res, next) => {
         console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -337,16 +317,12 @@ async function ensureDatabaseInitialized() {
     dbInitializationPromise = (async () => {
         try {
             const { pool } = require('./config/database');
-            const fs = require('fs');
-            const path = require('path');
             
             console.log('🔍 Checking if database is initialized...');
             
-            // Test connection
             const testResult = await pool.query('SELECT 1');
             console.log('✅ Database connection successful');
             
-            // Check if coaches table exists
             const tableCheck = await pool.query(`
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables 
@@ -357,12 +333,7 @@ async function ensureDatabaseInitialized() {
             if (!tableCheck.rows[0].exists) {
                 console.log('📖 Coaches table does not exist. Running migration...');
                 
-                // Read and execute the migration SQL
                 const migrationSQL = `
--- ============================================
--- AI Coaches Performance Tracking
--- ============================================
-
 CREATE TABLE IF NOT EXISTS coaches (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -442,7 +413,6 @@ CREATE INDEX IF NOT EXISTS idx_picks_result ON coach_picks(result);
 CREATE INDEX IF NOT EXISTS idx_picks_sport ON coach_picks(sport);
 `;
 
-                // Split by statement and execute each one
                 const statements = migrationSQL.split(';').filter(s => s.trim());
                 for (const statement of statements) {
                     await pool.query(statement.trim());
@@ -459,7 +429,6 @@ CREATE INDEX IF NOT EXISTS idx_picks_sport ON coach_picks(sport);
             return true;
         } catch (error) {
             console.warn('⚠️  Database initialization warning:', error.message);
-            // Don't fail completely - we have fallbacks
             dbInitialized = true;
             return false;
         }
@@ -499,11 +468,7 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// ============================================
-// LIVE DASHBOARD API
-// ============================================
-
-// Get Odds API Key for Live Dashboard
+// Live Dashboard config
 app.get('/api/live-dashboard/config', (req, res) => {
     console.log('📊 Live Dashboard config requested');
     res.json({
@@ -521,7 +486,7 @@ app.get('/api/live-dashboard/config', (req, res) => {
     });
 });
 
-// Debug endpoint for testing API configuration
+// Debug config
 app.get('/api/debug/config', (req, res) => {
     res.json({
         environment: process.env.NODE_ENV,
@@ -552,9 +517,7 @@ app.get('/api/debug/database', async (req, res) => {
     }
 });
 
-// ============================================
-// TEST ENDPOINT - No authentication required
-// ============================================
+// Test endpoint
 app.get('/api/test/games', (req, res) => {
     res.json({
         success: true,
@@ -586,5 +549,46 @@ app.get('/api/test/games', (req, res) => {
     });
 });
 
-// ============================================
-// EMERGENCY FALLBACK - AI Coa
+// Emergency fallback - AI Coaches Picks
+app.get('/api/ai-coaches/picks', (req, res) => {
+    console.log('🎲 Fallback picks endpoint called');
+    
+    res.json({
+        success: true,
+        timestamp: new Date().toISOString(),
+        count: 11,
+        coaches: [
+            {
+                id: 1,
+                name: 'The Analyst',
+                specialty: 'basketball_nba',
+                avatar: '🤖',
+                tier: 'PRO',
+                strategy: 'value_betting',
+                accuracy: 74.2,
+                totalPicks: 547,
+                streak: 12,
+                recentPicks: [
+                    {
+                        game: 'Lakers @ Celtics',
+                        pick: 'Lakers -5.5',
+                        odds: -115,
+                        confidence: 87,
+                        reasoning: 'Strong home court advantage and recent form'
+                    }
+                ]
+            },
+            {
+                id: 2,
+                name: 'Sharp Shooter',
+                specialty: 'americanfootball_nfl',
+                avatar: '🏈',
+                tier: 'VIP',
+                strategy: 'sharp_money',
+                accuracy: 71.8,
+                totalPicks: 423,
+                streak: 8,
+                recentPicks: [
+                    {
+                        game: 'Chiefs @ Ravens',
+                        pick: 'Chiefs ML
