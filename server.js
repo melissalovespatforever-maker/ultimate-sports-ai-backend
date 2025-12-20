@@ -91,6 +91,63 @@ app.get('/api/admin/init-database', async (req, res) => {
   }
 });
 
+app.post('/api/auth/register', (req, res) => {
+  try {
+    const { username, email, password } = req.body;
+    
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+    
+    console.log('✅ User registered:', email);
+    
+    res.json({
+      success: true,
+      message: 'Registration successful',
+      user: {
+        id: Math.random().toString(36).substr(2, 9),
+        username,
+        email,
+        tier: 'FREE'
+      },
+      token: 'mock-jwt-token-' + Date.now()
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/auth/login', (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+    
+    console.log('✅ User login:', email);
+    
+    res.json({
+      success: true,
+      message: 'Login successful',
+      user: {
+        id: Math.random().toString(36).substr(2, 9),
+        email,
+        username: email.split('@')[0],
+        tier: 'FREE',
+        balance: 1000
+      },
+      token: 'mock-jwt-token-' + Date.now()
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/shop', shopRoutes);
@@ -137,4 +194,3 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 module.exports = { app, server, io };
-  
