@@ -968,6 +968,60 @@ try {
     console.warn('⚠️  Live dashboard initialization warning:', e.message);
 }
 
+# 🔧 Backend server.js - Updated Changes
+
+## Location: `/backend/server.js`
+
+---
+
+## ✅ CHANGE #1: Health Check Endpoint (Line 475-486)
+
+**LOCATION:** Around line 475 (after line 474 blank)
+
+**OLD CODE:**
+```javascript
+// Health check (Railway monitoring)
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV,
+        oddsApiConfigured: !!process.env.THE_ODDS_API_KEY,
+        databaseReady: dbInitialized
+    });
+});
+```
+
+**NEW CODE:**
+```javascript
+// Health check (Railway monitoring) - MUST respond immediately
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV,
+        oddsApiConfigured: !!process.env.THE_ODDS_API_KEY,
+        databaseReady: dbInitialized,
+        message: 'Backend is running'
+    });
+});
+```
+
+**WHAT CHANGED:**
+- ✅ Added explicit `res.status(200)` for clarity
+- ✅ Added `message: 'Backend is running'` for debugging
+- ✅ Added comment emphasizing immediate response
+
+---
+
+## ✅ CHANGE #2: Server Startup (Line 973-1001)
+
+**LOCATION:** Around line 973 (the entire "SERVER START" section)
+
+**OLD CODE:**
+```javascript
 // ============================================
 // SERVER START
 // ============================================
@@ -1000,6 +1054,41 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('✅ Server is ready to accept connections');
 });
+```
+
+// ============================================
+// SERVER START
+// ============================================
+
+const PORT = process.env.PORT || 3001;
+
+// Start server immediately (don't wait for DB init)
+console.log('📍 Starting server on port', PORT);
+
+server.on('error', (err) => {
+    console.error('❌ Server error:', err.message);
+    process.exit(1);
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🏈 Ultimate Sports AI Backend Server');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+    console.log(`⚡ WebSocket server ready`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ Server is ready to accept connections');
+    
+    // Initialize database in background (doesn't block requests)
+    console.log('📍 Initializing database in background...');
+    ensureDatabaseInitialized().then(() => {
+        console.log('✅ Database initialization complete');
+    }).catch((err) => {
+        console.warn('⚠️  Database initialization warning:', err.message);
+    });
+ });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
