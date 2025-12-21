@@ -192,9 +192,9 @@ app.get('/api/admin/init-database', async (req, res) => {
         console.log('📊 Admin Database init requested');
         
         // Read schema and seed files
-        const schemaPath = path.join(__dirname, 'database', 'schema.sql');
-        const seedPath = path.join(__dirname, 'database', 'seed.sql');
-        
+        const schemaPath = path.join(__dirname, 'database', 'schema-complete.sql');
+        const seedPath = path.join(__dirname, 'database', 'seed-complete.sql');
+         
         const schema = fs.readFileSync(schemaPath, 'utf8');
         const seed = fs.readFileSync(seedPath, 'utf8');
         
