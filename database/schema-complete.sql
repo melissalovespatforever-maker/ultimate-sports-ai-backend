@@ -69,11 +69,12 @@ CREATE INDEX IF NOT EXISTS idx_users_subscription ON users(subscription_tier);
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
     token VARCHAR(500) NOT NULL UNIQUE,
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    revoked BOOLEAN DEFAULT FALSE
+    revoked BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
@@ -102,7 +103,7 @@ CREATE TABLE IF NOT EXISTS coaches (
 
 CREATE TABLE IF NOT EXISTS coach_picks (
     id SERIAL PRIMARY KEY,
-    coach_id INTEGER NOT NULL REFERENCES coaches(id) ON DELETE CASCADE,
+    coach_id INTEGER NOT NULL,
     game_id VARCHAR(100) NOT NULL,
     sport VARCHAR(100) NOT NULL,
     home_team VARCHAR(100) NOT NULL,
@@ -115,7 +116,8 @@ CREATE TABLE IF NOT EXISTS coach_picks (
     game_time TIMESTAMP NOT NULL,
     result VARCHAR(20) DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (coach_id) REFERENCES coaches(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_picks_coach_id ON coach_picks(coach_id);
@@ -128,7 +130,7 @@ CREATE INDEX IF NOT EXISTS idx_picks_sport ON coach_picks(sport);
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS coach_stats (
-    coach_id INTEGER PRIMARY KEY REFERENCES coaches(id) ON DELETE CASCADE,
+    coach_id INTEGER PRIMARY KEY,
     total_picks INTEGER DEFAULT 0,
     wins INTEGER DEFAULT 0,
     losses INTEGER DEFAULT 0,
@@ -140,7 +142,8 @@ CREATE TABLE IF NOT EXISTS coach_stats (
     units_won DECIMAL(10,2) DEFAULT 0.00,
     last_pick_date TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (coach_id) REFERENCES coaches(id) ON DELETE CASCADE
 );
 
 -- ============================================
@@ -175,13 +178,15 @@ CREATE INDEX IF NOT EXISTS idx_tournaments_start_time ON tournaments(start_time)
 
 CREATE TABLE IF NOT EXISTS leaderboards (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
     rank INTEGER,
     points INTEGER DEFAULT 0,
-    tournament_id INTEGER REFERENCES tournaments(id) ON DELETE SET NULL,
+    tournament_id INTEGER,
     period VARCHAR(20) DEFAULT 'global',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_leaderboards_user ON leaderboards(user_id);
@@ -211,9 +216,11 @@ CREATE TABLE IF NOT EXISTS achievements (
 
 CREATE TABLE IF NOT EXISTS user_achievements (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    achievement_id VARCHAR(100) NOT NULL REFERENCES achievements(id),
+    user_id INTEGER NOT NULL,
+    achievement_id VARCHAR(100) NOT NULL,
     unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (achievement_id) REFERENCES achievements(id),
     UNIQUE(user_id, achievement_id)
 );
 
@@ -270,12 +277,13 @@ CREATE TABLE IF NOT EXISTS shop_inventory (
 
 CREATE TABLE IF NOT EXISTS user_shop_purchases (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
     item_id VARCHAR(50) NOT NULL,
     item_name VARCHAR(100) NOT NULL,
     price_paid INTEGER NOT NULL,
     category VARCHAR(50) NOT NULL,
     purchased_at TIMESTAMP DEFAULT NOW(),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE(user_id, item_id)
 );
 
@@ -288,7 +296,7 @@ CREATE INDEX IF NOT EXISTS idx_user_shop_purchases_item ON user_shop_purchases(i
 
 CREATE TABLE IF NOT EXISTS daily_deal_purchases (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
     deal_id VARCHAR(50) NOT NULL,
     deal_name VARCHAR(100) NOT NULL,
     normal_price INTEGER NOT NULL,
@@ -296,7 +304,8 @@ CREATE TABLE IF NOT EXISTS daily_deal_purchases (
     discount_percent INTEGER NOT NULL,
     savings INTEGER NOT NULL,
     purchase_date DATE DEFAULT CURRENT_DATE,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT NOW(),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_daily_deal_purchases_user ON daily_deal_purchases(user_id);
@@ -313,12 +322,13 @@ CREATE TABLE IF NOT EXISTS daily_deal_stock (
 
 CREATE TABLE IF NOT EXISTS active_boosters (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
     booster_type VARCHAR(50) NOT NULL,
     multiplier DECIMAL(3,2) DEFAULT 2.00,
     duration_hours INTEGER DEFAULT 24,
     activated_at TIMESTAMP DEFAULT NOW(),
     expires_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE(user_id, booster_type)
 );
 
@@ -331,12 +341,14 @@ CREATE INDEX IF NOT EXISTS idx_active_boosters_expires ON active_boosters(expire
 
 CREATE TABLE IF NOT EXISTS bets (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    tournament_id INTEGER REFERENCES tournaments(id),
+    user_id INTEGER NOT NULL,
+    tournament_id INTEGER,
     amount INTEGER NOT NULL,
     status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'won', 'lost', 'push')),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (tournament_id) REFERENCES tournaments(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_bets_user ON bets(user_id);
@@ -349,8 +361,8 @@ CREATE INDEX IF NOT EXISTS idx_bets_status ON bets(status);
 
 CREATE TABLE IF NOT EXISTS live_bet_tracking (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    bet_id INTEGER REFERENCES bets(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
+    bet_id INTEGER,
     event_id VARCHAR(100),
     event_name VARCHAR(255),
     current_odds DECIMAL(8,2),
@@ -359,7 +371,9 @@ CREATE TABLE IF NOT EXISTS live_bet_tracking (
     profit_loss_percent DECIMAL(8,2),
     status VARCHAR(20),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (bet_id) REFERENCES bets(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_live_bet_tracking_user ON live_bet_tracking(user_id);
@@ -371,12 +385,14 @@ CREATE INDEX IF NOT EXISTS idx_live_bet_tracking_bet ON live_bet_tracking(bet_id
 
 CREATE TABLE IF NOT EXISTS referrals (
     id SERIAL PRIMARY KEY,
-    referrer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    referred_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    referrer_id INTEGER NOT NULL,
+    referred_user_id INTEGER NOT NULL,
     referral_code VARCHAR(50),
     status VARCHAR(20) DEFAULT 'pending',
     commission_amount INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (referrer_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (referred_user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE(referrer_id, referred_user_id)
 );
 
@@ -389,7 +405,7 @@ CREATE INDEX IF NOT EXISTS idx_referrals_referred ON referrals(referred_user_id)
 
 CREATE TABLE IF NOT EXISTS subscriptions (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
     plan_name VARCHAR(100),
     price INTEGER,
     billing_cycle VARCHAR(20),
@@ -397,21 +413,24 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     auto_renew BOOLEAN DEFAULT TRUE,
     started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
 
 CREATE TABLE IF NOT EXISTS invoices (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    subscription_id INTEGER REFERENCES subscriptions(id),
+    user_id INTEGER NOT NULL,
+    subscription_id INTEGER,
     amount INTEGER NOT NULL,
     status VARCHAR(20) DEFAULT 'pending',
     issue_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     due_date TIMESTAMP,
     paid_date TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (subscription_id) REFERENCES subscriptions(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_invoices_user ON invoices(user_id);
@@ -422,12 +441,13 @@ CREATE INDEX IF NOT EXISTS idx_invoices_user ON invoices(user_id);
 
 CREATE TABLE IF NOT EXISTS two_factor_auth (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+    user_id INTEGER NOT NULL UNIQUE,
     secret_key VARCHAR(255) NOT NULL,
     backup_codes TEXT[],
     enabled BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- ============================================
@@ -436,24 +456,26 @@ CREATE TABLE IF NOT EXISTS two_factor_auth (
 
 CREATE TABLE IF NOT EXISTS push_notifications (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
     title VARCHAR(255),
     message TEXT,
     type VARCHAR(50),
     status VARCHAR(20) DEFAULT 'pending',
     sent_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS email_logs (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
     email_type VARCHAR(50),
     recipient_email VARCHAR(255),
     subject VARCHAR(255),
     status VARCHAR(20) DEFAULT 'pending',
     sent_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_email_logs_user ON email_logs(user_id);
@@ -464,18 +486,22 @@ CREATE INDEX IF NOT EXISTS idx_email_logs_user ON email_logs(user_id);
 
 CREATE TABLE IF NOT EXISTS user_followers (
     id SERIAL PRIMARY KEY,
-    follower_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    following_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    follower_user_id INTEGER NOT NULL,
+    following_user_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (follower_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (following_user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE(follower_user_id, following_user_id)
 );
 
 CREATE TABLE IF NOT EXISTS user_friends (
     id SERIAL PRIMARY KEY,
-    user_id_1 INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    user_id_2 INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id_1 INTEGER NOT NULL,
+    user_id_2 INTEGER NOT NULL,
     status VARCHAR(20) DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id_1) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id_2) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE(user_id_1, user_id_2)
 );
 
@@ -494,9 +520,11 @@ CREATE TABLE IF NOT EXISTS badges (
 
 CREATE TABLE IF NOT EXISTS user_badges (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    badge_id INTEGER NOT NULL REFERENCES badges(id),
+    user_id INTEGER NOT NULL,
+    badge_id INTEGER NOT NULL,
     earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (badge_id) REFERENCES badges(id),
     UNIQUE(user_id, badge_id)
 );
 
@@ -506,10 +534,11 @@ CREATE TABLE IF NOT EXISTS user_badges (
 
 CREATE TABLE IF NOT EXISTS user_analytics (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
     metric_type VARCHAR(50),
     metric_value INTEGER,
-    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_analytics_user ON user_analytics(user_id);
@@ -521,11 +550,12 @@ CREATE INDEX IF NOT EXISTS idx_user_analytics_type ON user_analytics(metric_type
 
 CREATE TABLE IF NOT EXISTS age_verification (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+    user_id INTEGER NOT NULL UNIQUE,
     verified BOOLEAN DEFAULT FALSE,
     verification_method VARCHAR(50),
     verified_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- ============================================
@@ -534,13 +564,14 @@ CREATE TABLE IF NOT EXISTS age_verification (
 
 CREATE TABLE IF NOT EXISTS oauth_providers (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
     provider VARCHAR(50) NOT NULL,
     provider_user_id VARCHAR(255) NOT NULL,
     access_token VARCHAR(500),
     refresh_token VARCHAR(500),
     token_expires_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE(provider, provider_user_id)
 );
 
