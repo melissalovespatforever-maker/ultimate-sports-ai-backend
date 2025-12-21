@@ -152,6 +152,8 @@ const passwordResetRoutes = safeRequire('./routes/password-reset', 'Password Res
 const initCoachesRoutes = safeRequire('./routes/init-coaches', 'Init Coaches');
 const initCoachesGetRoutes = safeRequire('./routes/init-coaches-get', 'Init Coaches GET');
 const checkCoachesRoutes = safeRequire('./routes/check-coaches', 'Check Coaches');
+const tournamentsRoutes = safeRequire('./routes/tournaments', 'Tournaments');
+const leaderboardsRoutes = safeRequire('./routes/leaderboards', 'Leaderboards');
 
 // Middleware Loading
 let authenticateToken;
@@ -195,6 +197,8 @@ app.use('/api/password-reset', passwordResetRoutes);
 app.use('/api/init-coaches', initCoachesRoutes);
 app.use('/api/init-coaches-now', initCoachesGetRoutes);
 app.use('/api/check-coaches', checkCoachesRoutes);
+app.use('/api/tournaments', authenticateToken, tournamentsRoutes);
+app.use('/api/leaderboards', leaderboardsRoutes);
 
 // Live Dashboard Config
 app.get('/api/live-dashboard/config', (req, res) => {
@@ -295,4 +299,3 @@ process.on('SIGINT', () => {
 });
 
 module.exports = { app, server, io };
-  
