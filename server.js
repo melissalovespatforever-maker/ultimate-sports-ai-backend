@@ -178,48 +178,11 @@ app.get('/api/health', (req, res) => res.json({
     database: dbInitialized ? 'connected' : 'initializing'
 }));
 
-// API Routes Mounting
-app.use('/api/auth', authRoutes);
-app.use('/api/users', authenticateToken, userRoutes);
-app.use('/api/shop', shopRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/ai-coaches', aiCoachesRoutes);
-app.use('/api/ai-chat', aiChatRoutes);
-app.use('/api/odds', oddsRoutes);
-app.use('/api/scores', scoresRoutes);
-app.use('/api/bets', authenticateToken, betsRoutes);
-app.use('/api/subscriptions', subscriptionsRoutes);
-app.use('/api/achievements', authenticateToken, achievementsRoutes);
-app.use('/api/analytics', authenticateToken, analyticsRoutes);
-app.use('/api/2fa', twoFactorRoutes);
-app.use('/api/social', authenticateToken, socialRoutes);
-app.use('/api/password-reset', passwordResetRoutes);
-app.use('/api/init-coaches', initCoachesRoutes);
-app.use('/api/init-coaches-now', initCoachesGetRoutes);
-app.use('/api/check-coaches', checkCoachesRoutes);
-app.use('/api/tournaments', authenticateToken, tournamentsRoutes);
-app.use('/api/leaderboards', leaderboardsRoutes);
+// ============================================
+// PUBLIC ADMIN ENDPOINTS (Before protected admin routes)
+// ============================================
 
-// Live Dashboard Config
-app.get('/api/live-dashboard/config', (req, res) => {
-    res.json({ 
-        success: true, 
-        oddsApiKey: process.env.THE_ODDS_API_KEY,
-        oddsApiUrl: 'https://api.the-odds-api.com/v4'
-    });
-});
-
-// Debug Config
-app.get('/api/debug/config', (req, res) => {
-    res.json({ 
-        environment: process.env.NODE_ENV, 
-        nodeVersion: process.version,
-        jwtSecretConfigured: !!process.env.JWT_SECRET,
-        dbConfigured: !!process.env.DATABASE_URL
-    });
-});
-
-// Database Init Endpoint (Admin)
+// Database Init Endpoint (Admin - PUBLIC for initial setup)
 app.get('/api/admin/init-database', async (req, res) => {
     try {
         const fs = require('fs');
@@ -258,6 +221,50 @@ app.get('/api/admin/init-database', async (req, res) => {
             error: error.message
         });
     }
+});
+
+// ============================================
+// API Routes Mounting
+// ============================================
+
+app.use('/api/auth', authRoutes);
+app.use('/api/users', authenticateToken, userRoutes);
+app.use('/api/shop', shopRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/ai-coaches', aiCoachesRoutes);
+app.use('/api/ai-chat', aiChatRoutes);
+app.use('/api/odds', oddsRoutes);
+app.use('/api/scores', scoresRoutes);
+app.use('/api/bets', authenticateToken, betsRoutes);
+app.use('/api/subscriptions', subscriptionsRoutes);
+app.use('/api/achievements', authenticateToken, achievementsRoutes);
+app.use('/api/analytics', authenticateToken, analyticsRoutes);
+app.use('/api/2fa', twoFactorRoutes);
+app.use('/api/social', authenticateToken, socialRoutes);
+app.use('/api/password-reset', passwordResetRoutes);
+app.use('/api/init-coaches', initCoachesRoutes);
+app.use('/api/init-coaches-now', initCoachesGetRoutes);
+app.use('/api/check-coaches', checkCoachesRoutes);
+app.use('/api/tournaments', authenticateToken, tournamentsRoutes);
+app.use('/api/leaderboards', leaderboardsRoutes);
+
+// Live Dashboard Config
+app.get('/api/live-dashboard/config', (req, res) => {
+    res.json({ 
+        success: true, 
+        oddsApiKey: process.env.THE_ODDS_API_KEY,
+        oddsApiUrl: 'https://api.the-odds-api.com/v4'
+    });
+});
+
+// Debug Config
+app.get('/api/debug/config', (req, res) => {
+    res.json({ 
+        environment: process.env.NODE_ENV, 
+        nodeVersion: process.version,
+        jwtSecretConfigured: !!process.env.JWT_SECRET,
+        dbConfigured: !!process.env.DATABASE_URL
+    });
 });
 
 // 404 Handler
