@@ -7,17 +7,17 @@
 -- ============================================
 
 INSERT INTO coaches (name, specialty, avatar, tier, strategy, followers) VALUES
-(1, 'The Analyst', 'basketball_nba', '🤖', 'FREE', 'value_betting', 15000),
-(2, 'Sharp Shooter', 'americanfootball_nfl', '🏈', 'VIP', 'sharp_money', 12000),
-(3, 'Data Dragon', 'baseball_mlb', '⚾', 'PRO', 'consensus', 10000),
-(4, 'Ice Breaker', 'icehockey_nhl', '🏒', 'VIP', 'value_betting', 9000),
-(5, 'El Futbolista', 'soccer_epl', '⚽', 'VIP', 'sharp_money', 8000),
-(6, 'The Gridiron Guru', 'americanfootball_ncaaf', '🏈', 'PRO', 'consensus', 7500),
-(7, 'Ace of Aces', 'tennis_atp', '🎾', 'PRO', 'value_betting', 6500),
-(8, 'The Brawl Boss', 'mma_mixed_martial_arts', '🥊', 'VIP', 'sharp_money', 5500),
-(9, 'The Green Master', 'golf_pga', '⛳', 'PRO', 'consensus', 4500),
-(10, 'March Madness', 'basketball_ncaab', '🏀', 'PRO', 'value_betting', 6000),
-(11, 'Pixel Prophet', 'esports_lol', '🎮', 'VIP', 'sharp_money', 4000)
+('The Analyst', 'basketball_nba', '🤖', 'FREE', 'value_betting', 15000),
+('Sharp Shooter', 'americanfootball_nfl', '🏈', 'VIP', 'sharp_money', 12000),
+('Data Dragon', 'baseball_mlb', '⚾', 'PRO', 'consensus', 10000),
+('Ice Breaker', 'icehockey_nhl', '🏒', 'VIP', 'value_betting', 9000),
+('El Futbolista', 'soccer_epl', '⚽', 'VIP', 'sharp_money', 8000),
+('The Gridiron Guru', 'americanfootball_ncaaf', '🏈', 'PRO', 'consensus', 7500),
+('Ace of Aces', 'tennis_atp', '🎾', 'PRO', 'value_betting', 6500),
+('The Brawl Boss', 'mma_mixed_martial_arts', '🥊', 'VIP', 'sharp_money', 5500),
+('The Green Master', 'golf_pga', '⛳', 'PRO', 'consensus', 4500),
+('March Madness', 'basketball_ncaab', '🏀', 'PRO', 'value_betting', 6000),
+('Pixel Prophet', 'esports_lol', '🎮', 'VIP', 'sharp_money', 4000)
 ON CONFLICT DO NOTHING;
 
 -- ============================================
