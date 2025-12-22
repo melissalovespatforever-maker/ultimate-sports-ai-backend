@@ -29,7 +29,7 @@ const aiCoachPicks = {
             // List of API endpoints to try
             const apiEndpoints = [
                 window.CONFIG?.API_BASE_URL || 'https://ultimate-sports-ai-backend-production.up.railway.app',
-                '/api' // Fallback to same-origin
+                '' // Fallback to same-origin with relative path
             ];
             
             let lastError = null;
@@ -40,11 +40,18 @@ const aiCoachPicks = {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 8000);
                     
+                    // Get auth token if available
+                    const token = localStorage.getItem('auth_token');
+                    const headers = {
+                        'Content-Type': 'application/json'
+                    };
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    }
+                    
                     const response = await fetch(`${apiUrl}/api/ai-coaches/picks`, {
                         method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
+                        headers: headers,
                         signal: controller.signal
                     });
                     
