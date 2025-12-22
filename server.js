@@ -191,6 +191,43 @@ app.get('/api/admin/init-database', async (req, res) => {
         
         console.log('📊 Admin Database init requested');
         
+        // Drop all existing tables first
+        console.log('🗑️  Dropping existing tables...');
+        await pool.query(`
+            DROP TABLE IF EXISTS oauth_providers CASCADE;
+            DROP TABLE IF EXISTS age_verification CASCADE;
+            DROP TABLE IF EXISTS user_analytics CASCADE;
+            DROP TABLE IF EXISTS user_badges CASCADE;
+            DROP TABLE IF EXISTS badges CASCADE;
+            DROP TABLE IF EXISTS user_friends CASCADE;
+            DROP TABLE IF EXISTS user_followers CASCADE;
+            DROP TABLE IF EXISTS email_logs CASCADE;
+            DROP TABLE IF EXISTS push_notifications CASCADE;
+            DROP TABLE IF EXISTS two_factor_auth CASCADE;
+            DROP TABLE IF EXISTS invoices CASCADE;
+            DROP TABLE IF EXISTS subscriptions CASCADE;
+            DROP TABLE IF EXISTS referrals CASCADE;
+            DROP TABLE IF EXISTS live_bet_tracking CASCADE;
+            DROP TABLE IF EXISTS bets CASCADE;
+            DROP TABLE IF EXISTS active_boosters CASCADE;
+            DROP TABLE IF EXISTS daily_deal_stock CASCADE;
+            DROP TABLE IF EXISTS daily_deal_purchases CASCADE;
+            DROP TABLE IF EXISTS user_shop_purchases CASCADE;
+            DROP TABLE IF EXISTS shop_inventory CASCADE;
+            DROP TABLE IF EXISTS shop_items CASCADE;
+            DROP TABLE IF EXISTS user_achievements CASCADE;
+            DROP TABLE IF EXISTS achievements CASCADE;
+            DROP TABLE IF EXISTS challenges CASCADE;
+            DROP TABLE IF EXISTS leaderboards CASCADE;
+            DROP TABLE IF EXISTS coach_stats CASCADE;
+            DROP TABLE IF EXISTS coach_picks CASCADE;
+            DROP TABLE IF EXISTS coaches CASCADE;
+            DROP TABLE IF EXISTS tournaments CASCADE;
+            DROP TABLE IF EXISTS refresh_tokens CASCADE;
+            DROP TABLE IF EXISTS users CASCADE;
+        `);
+        console.log('✅ Old tables dropped');
+        
         // Read schema and seed files
         const schemaPath = path.join(__dirname, 'database', 'schema-complete.sql');
         const seedPath = path.join(__dirname, 'database', 'seed-complete.sql');
@@ -210,7 +247,7 @@ app.get('/api/admin/init-database', async (req, res) => {
             success: true,
             message: 'Database initialized successfully! 🎉',
             details: {
-                tables: 'Created',
+                tables: 'Created (old tables dropped)',
                 seed: 'Inserted'
             }
         });
