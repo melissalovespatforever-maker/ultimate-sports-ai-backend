@@ -194,7 +194,7 @@ app.get('/api/admin/init-database', async (req, res) => {
         // Read schema and seed files
         const schemaPath = path.join(__dirname, 'database', 'schema-complete.sql');
         const seedPath = path.join(__dirname, 'database', 'seed-complete.sql');
-         
+        
         const schema = fs.readFileSync(schemaPath, 'utf8');
         const seed = fs.readFileSync(seedPath, 'utf8');
         
