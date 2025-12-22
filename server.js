@@ -265,7 +265,7 @@ app.get('/api/admin/init-database', async (req, res) => {
 // ============================================
 
 app.use('/api/auth', authRoutes);
-app.use('/api/users', authenticateToken, userRoutes);
+app.use('/api/users', userRoutes); // Auth middleware is now inside route handlers
 app.use('/api/shop', shopRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ai-coaches', aiCoachesRoutes);
