@@ -187,19 +187,35 @@ const aiCoachChat = {
 
         try {
             // Call backend AI chat API
-            const response = await fetch('/api/ai-chat/message', {
+            const apiBaseUrl = (window.CONFIG && window.CONFIG.API_BASE_URL) || 'https://ultimate-sports-ai-backend-production.up.railway.app';
+            
+            console.log('📡 Sending AI chat request to:', `${apiBaseUrl}/api/ai-chat/message`);
+            
+            // Get auth token if available
+            const token = localStorage.getItem('auth_token');
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            
+            const response = await fetch(`${apiBaseUrl}/api/ai-chat/message`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-                },
+                headers: headers,
                 body: JSON.stringify({
+                    coachId: this.currentCoach.id,
                     coachName: this.currentCoach.name,
                     message: text,
-                    userId: window.currentUser?.id || 'anonymous'
+                    context: {
+                        sport: this.currentCoach.specialty,
+                        previousMessages: this.messages.slice(-5) // Last 5 messages
+                    }
                 })
             });
 
+            console.log('✅ Response status:', response.status, response.statusText);
+            
             const data = await response.json();
             
             typingMsg.remove();
@@ -212,7 +228,8 @@ const aiCoachChat = {
                 this.addMessage('coach', fallbackResponse);
             }
         } catch (error) {
-            console.error('AI Chat error:', error);
+            console.error('❌ AI Chat error:', error.message || error);
+            console.error('Error details:', error);
             typingMsg.remove();
             // Fallback to local response on error
             const response = this.getAIResponse(text);
