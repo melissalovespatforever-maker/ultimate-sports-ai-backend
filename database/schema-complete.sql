@@ -283,8 +283,8 @@ CREATE TABLE IF NOT EXISTS user_shop_purchases (
     price_paid INTEGER NOT NULL,
     category VARCHAR(50) NOT NULL,
     purchased_at TIMESTAMP DEFAULT NOW(),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(user_id, item_id)
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_shop_purchases_user ON user_shop_purchases(user_id);
