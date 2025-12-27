@@ -154,7 +154,7 @@ const initCoachesGetRoutes = safeRequire('./routes/init-coaches-get', 'Init Coac
 const checkCoachesRoutes = safeRequire('./routes/check-coaches', 'Check Coaches');
 const tournamentsRoutes = safeRequire('./routes/tournaments', 'Tournaments');
 const leaderboardsRoutes = safeRequire('./routes/leaderboards', 'Leaderboards');
-
+const databaseInitRoutes = safeRequire('./routes/database-init', 'Database Init');
 // Middleware Loading
 let authenticateToken;
 try {
@@ -176,7 +176,7 @@ app.get('/api/health', (req, res) => res.json({
     service: 'ultimate-sports-ai-backend', 
     version: '2.0.0',
     database: dbInitialized ? 'connected' : 'initializing'
-}));
+})); // Database initialization routes (PUBLIC - no auth needed) app.use('/api/admin', databaseInitRoutes); // ← NEW
 
 // ============================================
 // PUBLIC ADMIN ENDPOINTS (Before protected admin routes)
