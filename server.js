@@ -114,7 +114,17 @@ async function ensureDatabaseInitialized() {
 }
 
 // Initialize database in background
-ensureDatabaseInitialized().catch(err => console.error('DB Init Error:', err));
+ensureDatabaseInitialized().then(() => {
+    // Start ESPN scheduler after database is initialized
+    try {
+        const espnScheduler = require('./services/espn-scheduler');
+        espnScheduler.startESPNScheduler().catch(err => {
+            console.warn('⚠️  ESPN Scheduler startup warning:', err.message);
+        });
+    } catch (err) {
+        console.warn('⚠️  ESPN Scheduler loading warning:', err.message);
+    }
+}).catch(err => console.error('DB Init Error:', err));
 
 // ============================================
 // ROUTE LOADING
@@ -345,11 +355,23 @@ server.listen(PORT, '0.0.0.0', () => {
 // Graceful Shutdown
 process.on('SIGTERM', () => {
     console.log('SIGTERM received. Closing gracefully...');
+    try {
+        const espnScheduler = require('./services/espn-scheduler');
+        espnScheduler.stopESPNScheduler();
+    } catch (e) {
+        console.warn('Warning during scheduler shutdown:', e.message);
+    }
     server.close(() => process.exit(0));
 });
 
 process.on('SIGINT', () => {
     console.log('SIGINT received. Closing gracefully...');
+    try {
+        const espnScheduler = require('./services/espn-scheduler');
+        espnScheduler.stopESPNScheduler();
+    } catch (e) {
+        console.warn('Warning during scheduler shutdown:', e.message);
+    }
     server.close(() => process.exit(0));
 });
 
