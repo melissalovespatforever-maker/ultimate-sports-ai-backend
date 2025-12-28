@@ -155,6 +155,7 @@ const checkCoachesRoutes = safeRequire('./routes/check-coaches', 'Check Coaches'
 const tournamentsRoutes = safeRequire('./routes/tournaments', 'Tournaments');
 const leaderboardsRoutes = safeRequire('./routes/leaderboards', 'Leaderboards');
 const databaseInitRoutes = safeRequire('./routes/database-init', 'Database Init');
+
 // Middleware Loading
 let authenticateToken;
 try {
@@ -176,20 +177,28 @@ app.get('/api/health', (req, res) => res.json({
     service: 'ultimate-sports-ai-backend', 
     version: '2.0.0',
     database: dbInitialized ? 'connected' : 'initializing'
-})); // Database initialization routes (PUBLIC - no auth needed) app.use('/api/admin', databaseInitRoutes); // ← NEW
+}));
 
 // ============================================
-// PUBLIC ADMIN ENDPOINTS (Before protected admin routes)
+// DATABASE INITIALIZATION ROUTES (NEW - RECOMMENDED)
 // ============================================
 
-// Database Init Endpoint (Admin - PUBLIC for initial setup)
-app.get('/api/admin/init-database', async (req, res) => {
+// Register the new database init routes
+app.use('/api/admin', databaseInitRoutes);
+
+// ============================================
+// PUBLIC ADMIN ENDPOINTS (Legacy - kept for backwards compatibility)
+// ============================================
+
+// OLD Database Init Endpoint (Uses schema files)
+// NOTE: The new routes in database-init.js are recommended
+app.get('/api/admin/init-database-legacy', async (req, res) => {
     try {
         const fs = require('fs');
         const path = require('path');
         const { pool } = require('./config/database');
         
-        console.log('📊 Admin Database init requested');
+        console.log('📊 Admin Database init requested (LEGACY)');
         
         // Drop all existing tables first
         console.log('🗑️  Dropping existing tables...');
@@ -267,7 +276,6 @@ app.get('/api/admin/init-database', async (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes); // Auth middleware is now inside route handlers
 app.use('/api/shop', shopRoutes);
-app.use('/api/admin', adminRoutes);
 app.use('/api/ai-coaches', aiCoachesRoutes);
 app.use('/api/ai-chat', aiChatRoutes);
 app.use('/api/odds', oddsRoutes);
@@ -284,6 +292,9 @@ app.use('/api/init-coaches-now', initCoachesGetRoutes);
 app.use('/api/check-coaches', checkCoachesRoutes);
 app.use('/api/tournaments', authenticateToken, tournamentsRoutes);
 app.use('/api/leaderboards', leaderboardsRoutes);
+
+// Admin routes should be registered AFTER database-init to avoid conflicts
+// We already registered adminRoutes via database-init above
 
 // Live Dashboard Config
 app.get('/api/live-dashboard/config', (req, res) => {
