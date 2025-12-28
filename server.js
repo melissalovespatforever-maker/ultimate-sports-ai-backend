@@ -1,3 +1,5 @@
+
+
 // ============================================
 // ULTIMATE SPORTS AI - PRODUCTION SERVER
 // Full features: DB, Auth, Real AI, Live Data
@@ -113,11 +115,28 @@ async function ensureDatabaseInitialized() {
     return dbInitializationPromise;
 }
 
+// Initialize WebSocket broadcaster
+let broadcaster;
+try {
+    const websocketBroadcaster = require('./services/websocket-broadcaster');
+    broadcaster = websocketBroadcaster;
+    broadcaster.initializeBroadcaster(io);
+    console.log('✅ WebSocket Broadcaster initialized');
+} catch (e) {
+    console.warn('⚠️  WebSocket Broadcaster loading warning:', e.message);
+}
+
 // Initialize database in background
 ensureDatabaseInitialized().then(() => {
     // Start ESPN scheduler after database is initialized
     try {
         const espnScheduler = require('./services/espn-scheduler');
+        
+        // Connect scheduler to broadcaster
+        if (broadcaster) {
+            espnScheduler.setBroadcaster(broadcaster);
+        }
+        
         espnScheduler.startESPNScheduler().catch(err => {
             console.warn('⚠️  ESPN Scheduler startup warning:', err.message);
         });
