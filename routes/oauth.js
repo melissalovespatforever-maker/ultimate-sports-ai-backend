@@ -1,12 +1,13 @@
 // ============================================
-// FIX FOR OAUTH.JS - GOOGLE & APPLE SIGN-IN
-// COPY THIS ENTIRE FILE TO /backend/routes/oauth.js
+// OAUTH ROUTES (BACKEND) - FIXED VERSION
+// Google OAuth & Apple Sign-In handlers
+// USES: Native Node.js fetch (no axios needed)
 // ============================================
 
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { pool } = require('../config/database');
+const { query, transaction } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
@@ -23,52 +24,10 @@ const APPLE_PRIVATE_KEY = process.env.APPLE_PRIVATE_KEY;
 const APPLE_REDIRECT_URI = process.env.APPLE_REDIRECT_URI || 'https://play.rosebud.ai/oauth/apple/callback';
 
 // ============================================
-// NATIVE FETCH HELPERS (NO AXIOS NEEDED)
+// GOOGLE OAUTH (using native fetch)
 // ============================================
 
-async function fetchPost(url, data, headers = {}) {
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...headers
-        },
-        body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`HTTP ${response.status}: ${text}`);
-    }
-
-    return response.json();
-}
-
-async function fetchGet(url, headers = {}) {
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            ...headers
-        }
-    });
-
-    if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    return response.json();
-}
-
-// ============================================
-// GOOGLE OAUTH
-// ============================================
-
-/**
- * POST /api/oauth/google/callback
- * Exchange Google authorization code for user info
- */
-router.post('/google/callback', async (req, res) => {
+router.post('/google/callback', async (req, res, next) => {
     try {
         const { code, codeVerifier, redirectUri } = req.body;
         
@@ -78,91 +37,100 @@ router.post('/google/callback', async (req, res) => {
                 message: 'Authorization code required'
             });
         }
-
-        console.log('🔐 Google OAuth callback - exchanging code');
         
-        // Exchange code for access token (using native fetch, not axios)
-        const tokenResponse = await fetchPost('https://oauth2.googleapis.com/token', {
-            code,
-            client_id: GOOGLE_CLIENT_ID,
-            client_secret: GOOGLE_CLIENT_SECRET,
-            redirect_uri: redirectUri || GOOGLE_REDIRECT_URI,
-            grant_type: 'authorization_code',
-            code_verifier: codeVerifier
+        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                code,
+                client_id: GOOGLE_CLIENT_ID,
+                client_secret: GOOGLE_CLIENT_SECRET,
+                redirect_uri: redirectUri || GOOGLE_REDIRECT_URI,
+                grant_type: 'authorization_code'
+            })
         });
         
-        const { access_token } = tokenResponse;
-        console.log('✅ Got Google access token');
+        if (!tokenResponse.ok) {
+            console.error('❌ Google token exchange failed');
+            return res.status(401).json({
+                error: 'Unauthorized',
+                message: 'Failed to exchange authorization code'
+            });
+        }
         
-        // Get user info from Google
-        const googleUser = await fetchGet('https://www.googleapis.com/oauth2/v2/userinfo', {
-            Authorization: `Bearer ${access_token}`
+        const tokenData = await tokenResponse.json();
+        const accessToken = tokenData.access_token;
+        
+        const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            }
         });
         
-        console.log(`✅ Got Google user: ${googleUser.email}`);
+        if (!userInfoResponse.ok) {
+            console.error('❌ Failed to get Google user info');
+            return res.status(401).json({
+                error: 'Unauthorized',
+                message: 'Failed to retrieve user information'
+            });
+        }
         
-        // Find or create user
-        const user = await findOrCreateOAuthUser({
-            provider: 'google',
-            providerId: googleUser.id,
-            email: googleUser.email,
-            username: googleUser.name || googleUser.email.split('@')[0],
-            avatar: googleUser.picture,
-            verifiedEmail: googleUser.verified_email
-        });
+        const userInfo = await userInfoResponse.json();
         
-        // Generate tokens
-        const { accessToken, refreshToken } = generateTokens(user.id);
-        
-        // Store refresh token
-        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        await pool.query(
-            'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-            [user.id, refreshToken, expiresAt]
+        const { rows } = await query(
+            `INSERT INTO users (
+                email, name, picture, oauth_provider, oauth_id, 
+                created_at, updated_at
+            ) VALUES ($1, $2, $3, 'google', $4, NOW(), NOW())
+            ON CONFLICT (email) DO UPDATE SET
+                name = $2,
+                picture = $3,
+                oauth_provider = 'google',
+                oauth_id = $4,
+                updated_at = NOW()
+            RETURNING *`,
+            [userInfo.email, userInfo.name || userInfo.email, userInfo.picture, userInfo.id]
         );
         
-        // Update last login
-        await pool.query(
-            'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
-            [user.id]
+        const user = rows[0];
+        
+        const token = jwt.sign(
+            { userId: user.id, email: user.email },
+            process.env.JWT_SECRET || 'your-secret-key',
+            { expiresIn: '30d' }
         );
         
-        console.log(`✅ Google auth successful for user ${user.id}`);
+        console.log(`✅ Google OAuth successful for user: ${user.email}`);
         
         res.json({
-            message: 'Google authentication successful',
+            success: true,
+            token,
             user: {
                 id: user.id,
-                username: user.username,
                 email: user.email,
-                avatar: user.avatar,
-                subscription_tier: user.subscription_tier
-            },
-            accessToken,
-            refreshToken,
-            expiresIn: 3600
+                name: user.name,
+                picture: user.picture
+            }
         });
         
     } catch (error) {
         console.error('❌ Google OAuth error:', error.message);
-        res.status(400).json({
-            error: 'Authentication failed',
+        res.status(500).json({
+            error: 'Internal Server Error',
             message: error.message
         });
     }
 });
 
 // ============================================
-// APPLE OAUTH
+// APPLE SIGNIN (using native fetch)
 // ============================================
 
-/**
- * POST /api/oauth/apple/callback
- * Exchange Apple authorization code for user info
- */
-router.post('/apple/callback', async (req, res) => {
+router.post('/apple/callback', async (req, res, next) => {
     try {
-        const { code, redirectUri, id_token, user } = req.body;
+        const { code, user, id_token } = req.body;
         
         if (!code) {
             return res.status(400).json({
@@ -170,270 +138,215 @@ router.post('/apple/callback', async (req, res) => {
                 message: 'Authorization code required'
             });
         }
-
-        console.log('🔐 Apple OAuth callback - exchanging code');
         
-        // Generate Apple client secret (required for Apple)
-        const clientSecret = generateAppleClientSecret();
-        
-        // Exchange code for access token (using native fetch, not axios)
-        const tokenResponse = await fetchPost('https://appleid.apple.com/auth/token', {
-            code,
-            client_id: APPLE_CLIENT_ID,
-            client_secret: clientSecret,
-            redirect_uri: redirectUri || APPLE_REDIRECT_URI,
-            grant_type: 'authorization_code'
+        const tokenResponse = await fetch('https://appleid.apple.com/auth/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+                client_id: APPLE_CLIENT_ID,
+                client_secret: generateAppleClientSecret(),
+                code,
+                grant_type: 'authorization_code',
+                redirect_uri: APPLE_REDIRECT_URI
+            })
         });
         
-        console.log('✅ Got Apple access token');
-        
-        // Decode ID token to get user info
-        let appleUser = {
-            id: null,
-            email: null,
-            name: null
-        };
-        
-        if (id_token) {
-            const decoded = jwt.decode(id_token);
-            appleUser = {
-                id: decoded.sub,
-                email: decoded.email,
-                name: user?.name?.firstName || decoded.email.split('@')[0]
-            };
-            console.log(`✅ Decoded Apple user: ${appleUser.email}`);
+        if (!tokenResponse.ok) {
+            console.error('❌ Apple token exchange failed');
+            return res.status(401).json({
+                error: 'Unauthorized',
+                message: 'Failed to exchange authorization code'
+            });
         }
         
-        // Find or create user
-        const dbUser = await findOrCreateOAuthUser({
-            provider: 'apple',
-            providerId: appleUser.id,
-            email: appleUser.email,
-            username: appleUser.name,
-            avatar: null,
-            verifiedEmail: true
-        });
+        const tokenData = await tokenResponse.json();
         
-        // Generate tokens
-        const { accessToken, refreshToken } = generateTokens(dbUser.id);
+        let userInfo;
+        if (id_token) {
+            try {
+                const parts = id_token.split('.');
+                const decoded = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+                userInfo = {
+                    id: decoded.sub,
+                    email: decoded.email
+                };
+            } catch (e) {
+                console.error('Failed to decode ID token');
+                userInfo = { id: user?.user, email: user?.email };
+            }
+        }
         
-        // Store refresh token
-        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        await pool.query(
-            'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-            [dbUser.id, refreshToken, expiresAt]
+        if (!userInfo?.email) {
+            return res.status(400).json({
+                error: 'Bad Request',
+                message: 'User email required for Apple Sign-In'
+            });
+        }
+        
+        const { rows } = await query(
+            `INSERT INTO users (
+                email, name, oauth_provider, oauth_id, 
+                created_at, updated_at
+            ) VALUES ($1, $2, 'apple', $3, NOW(), NOW())
+            ON CONFLICT (email) DO UPDATE SET
+                oauth_provider = 'apple',
+                oauth_id = $3,
+                updated_at = NOW()
+            RETURNING *`,
+            [userInfo.email, user?.name?.firstName || userInfo.email, userInfo.id]
         );
         
-        // Update last login
-        await pool.query(
-            'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
-            [dbUser.id]
+        const dbUser = rows[0];
+        
+        const token = jwt.sign(
+            { userId: dbUser.id, email: dbUser.email },
+            process.env.JWT_SECRET || 'your-secret-key',
+            { expiresIn: '30d' }
         );
         
-        console.log(`✅ Apple auth successful for user ${dbUser.id}`);
+        console.log(`✅ Apple Sign-In successful for user: ${dbUser.email}`);
         
         res.json({
-            message: 'Apple authentication successful',
+            success: true,
+            token,
             user: {
                 id: dbUser.id,
-                username: dbUser.username,
                 email: dbUser.email,
-                subscription_tier: dbUser.subscription_tier
-            },
-            accessToken,
-            refreshToken,
-            expiresIn: 3600
+                name: dbUser.name
+            }
         });
         
     } catch (error) {
-        console.error('❌ Apple OAuth error:', error.message);
-        res.status(400).json({
-            error: 'Authentication failed',
+        console.error('❌ Apple Sign-In error:', error.message);
+        res.status(500).json({
+            error: 'Internal Server Error',
             message: error.message
         });
     }
 });
 
 // ============================================
-// HELPER FUNCTIONS
+// HELPER: Generate Apple Client Secret
 // ============================================
 
-/**
- * Find existing OAuth user or create new one
- */
-async function findOrCreateOAuthUser(oauthData) {
-    try {
-        // Check if user exists by email
-        let result = await pool.query(
-            'SELECT * FROM users WHERE email = $1',
-            [oauthData.email]
-        );
-        
-        if (result.rows.length > 0) {
-            const user = result.rows[0];
-            
-            // Update OAuth provider info
-            await pool.query(
-                'UPDATE users SET oauth_provider = $1, oauth_id = $2, avatar = $3 WHERE id = $4',
-                [oauthData.provider, oauthData.providerId, oauthData.avatar, user.id]
-            );
-            
-            console.log(`✅ Updated existing OAuth user: ${user.email}`);
-            return user;
-        }
-        
-        // Create new user if doesn't exist
-        result = await pool.query(
-            `INSERT INTO users (email, username, avatar, oauth_provider, oauth_id, email_verified, subscription_tier, level)
-             VALUES ($1, $2, $3, $4, $5, $6, 'free', 1)
-             RETURNING *`,
-            [
-                oauthData.email, 
-                oauthData.username, 
-                oauthData.avatar, 
-                oauthData.provider, 
-                oauthData.providerId, 
-                oauthData.verifiedEmail || true
-            ]
-        );
-        
-        console.log(`✅ Created new OAuth user: ${oauthData.email}`);
-        return result.rows[0];
-        
-    } catch (error) {
-        console.error('❌ Error in findOrCreateOAuthUser:', error.message);
-        throw error;
-    }
-}
-
-/**
- * Generate JWT access and refresh tokens
- */
-function generateTokens(userId) {
-    const accessToken = jwt.sign(
-        { userId },
-        process.env.JWT_SECRET || 'your-secret-key',
-        { expiresIn: '1h' }
-    );
-    
-    const refreshToken = jwt.sign(
-        { userId },
-        process.env.JWT_SECRET || 'your-secret-key',
-        { expiresIn: '30d' }
-    );
-    
-    return { accessToken, refreshToken };
-}
-
-/**
- * Generate Apple client secret (required for Apple OAuth)
- */
 function generateAppleClientSecret() {
     if (!APPLE_TEAM_ID || !APPLE_KEY_ID || !APPLE_PRIVATE_KEY) {
-        throw new Error('Apple OAuth configuration incomplete');
+        throw new Error('Missing Apple credentials');
     }
     
     const now = Math.floor(Date.now() / 1000);
-    const token = jwt.sign(
-        {
-            iss: APPLE_TEAM_ID,
-            aud: 'https://appleid.apple.com',
-            sub: APPLE_CLIENT_ID,
-            iat: now,
-            exp: now + 3600
-        },
-        APPLE_PRIVATE_KEY,
-        { algorithm: 'ES256', keyid: APPLE_KEY_ID }
-    );
+    const expiration = now + 15 * 60;
     
-    return token;
+    const header = {
+        alg: 'ES256',
+        kid: APPLE_KEY_ID
+    };
+    
+    const payload = {
+        iss: APPLE_TEAM_ID,
+        iat: now,
+        exp: expiration,
+        aud: 'https://appleid.apple.com',
+        sub: APPLE_CLIENT_ID
+    };
+    
+    const crypto = require('crypto');
+    
+    try {
+        const headerB64 = Buffer.from(JSON.stringify(header)).toString('base64url');
+        const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+        const message = `${headerB64}.${payloadB64}`;
+        
+        const sign = crypto.createSign('sha256');
+        sign.update(message);
+        sign.end();
+        
+        const signature = sign.sign(APPLE_PRIVATE_KEY, 'base64url');
+        
+        return `${message}.${signature}`;
+    } catch (error) {
+        console.error('❌ Error generating Apple client secret:', error.message);
+        throw error;
+    }
 }
-
-// ============================================
-// REDIRECT ENDPOINTS
-// ============================================
-
-/**
- * GET /api/oauth/google/signin
- * Redirect to Google OAuth page
- */
-router.get('/google/signin', (req, res) => {
-    const state = crypto.randomBytes(16).toString('hex');
-    
-    const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
-        `client_id=${GOOGLE_CLIENT_ID}` +
-        `&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}` +
-        `&response_type=code` +
-        `&scope=${encodeURIComponent('openid email profile')}` +
-        `&state=${state}`;
-    
-    console.log('🔗 Redirecting to Google OAuth');
-    res.redirect(url);
-});
-
-/**
- * GET /api/oauth/apple/signin
- * Redirect to Apple OAuth page
- */
-router.get('/apple/signin', (req, res) => {
-    const state = crypto.randomBytes(16).toString('hex');
-    
-    const url = `https://appleid.apple.com/auth/authorize?` +
-        `client_id=${APPLE_CLIENT_ID}` +
-        `&redirect_uri=${encodeURIComponent(APPLE_REDIRECT_URI)}` +
-        `&response_type=code` +
-        `&response_mode=form_post` +
-        `&scope=openid email` +
-        `&state=${state}`;
-    
-    console.log('🔗 Redirecting to Apple OAuth');
-    res.redirect(url);
-});
 
 // ============================================
 // REFRESH TOKEN ENDPOINT
 // ============================================
 
-/**
- * POST /api/oauth/refresh
- * Refresh expired access token
- */
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', authenticateToken, async (req, res) => {
     try {
-        const { refreshToken } = req.body;
+        const userId = req.user.userId;
         
-        if (!refreshToken) {
-            return res.status(400).json({
-                error: 'Bad Request',
-                message: 'Refresh token required'
+        const { rows } = await query(
+            'SELECT id, email, name FROM users WHERE id = $1',
+            [userId]
+        );
+        
+        if (rows.length === 0) {
+            return res.status(401).json({
+                error: 'Unauthorized',
+                message: 'User not found'
             });
         }
         
-        // Verify refresh token
-        const decoded = jwt.verify(
-            refreshToken,
-            process.env.JWT_SECRET || 'your-secret-key'
-        );
+        const user = rows[0];
         
-        // Generate new access token
-        const accessToken = jwt.sign(
-            { userId: decoded.userId },
+        const token = jwt.sign(
+            { userId: user.id, email: user.email },
             process.env.JWT_SECRET || 'your-secret-key',
-            { expiresIn: '1h' }
+            { expiresIn: '30d' }
         );
         
         res.json({
-            accessToken,
-            expiresIn: 3600
+            success: true,
+            token
         });
         
     } catch (error) {
         console.error('❌ Token refresh error:', error.message);
-        res.status(400).json({
-            error: 'Invalid refresh token',
+        res.status(500).json({
+            error: 'Internal Server Error',
+            message: error.message
+        });
+    }
+});
+
+// ============================================
+// GET USER OAUTH STATUS
+// ============================================
+
+router.get('/status', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        
+        const { rows } = await query(
+            'SELECT id, email, name, picture, oauth_provider FROM users WHERE id = $1',
+            [userId]
+        );
+        
+        if (rows.length === 0) {
+            return res.status(401).json({
+                error: 'Unauthorized',
+                message: 'User not found'
+            });
+        }
+        
+        res.json({
+            success: true,
+            user: rows[0]
+        });
+        
+    } catch (error) {
+        console.error('❌ OAuth status error:', error.message);
+        res.status(500).json({
+            error: 'Internal Server Error',
             message: error.message
         });
     }
 });
 
 module.exports = router;
+                
