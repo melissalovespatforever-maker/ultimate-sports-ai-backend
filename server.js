@@ -17,19 +17,23 @@ console.log('🚀 Starting PRODUCTION backend initialization...');
 console.log(`📍 Node.js version: ${process.version}`);
 console.log(`📍 Environment: ${process.env.NODE_ENV || 'production'}`);
 
+// Catch any synchronous errors during module loading
 process.on('uncaughtException', (error) => {
     console.error('❌ UNCAUGHT EXCEPTION:', error.message);
     console.error(error.stack);
 });
 
+// Initialize Express app
 const app = express();
 const server = http.createServer(app);
 
+// Initialize Socket.io (Non-blocking)
 let io;
 try {
     io = new Server(server, {
         cors: {
             origin: function(origin, callback) {
+                // Allow all origins for maximum compatibility
                 callback(null, true);
             },
             methods: ['GET', 'POST'],
@@ -41,17 +45,20 @@ try {
     console.warn('⚠️  Socket.io initialization warning:', e.message);
 }
 
-app.use(cors({ origin: true, credentials: true }));
+// Middleware
+app.use(cors({ origin: true, credentials: true })); // Allow all origins with credentials
 app.use(compression());
-app.set('trust proxy', 1);
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.set('trust proxy', 1); // Trust first proxy (Railway/Vercel)
+app.use(express.json({ limit: '10mb' })); // Parse JSON bodies
+app.use(express.urlencoded({ extended: true, limit: '10mb' })); // Parse URL-encoded bodies
 
+// Security Headers (Helmet)
 app.use(helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: false, // Disable CSP for API
     crossOriginEmbedderPolicy: false
 }));
 
+// Request Logging (Development only)
 if (process.env.NODE_ENV === 'development') {
     app.use((req, res, next) => {
         console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -76,9 +83,11 @@ async function ensureDatabaseInitialized() {
             
             console.log('🔍 Checking database connection...');
             
+            // Test connection
             await pool.query('SELECT 1');
             console.log('✅ Database connection successful');
             
+            // Check if tables exist
             const tableCheck = await pool.query(`
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables 
@@ -96,6 +105,7 @@ async function ensureDatabaseInitialized() {
             return true;
         } catch (error) {
             console.error('❌ Database initialization error:', error.message);
+            // Don't block server startup on database error
             dbInitialized = true;
             return false;
         }
@@ -113,6 +123,7 @@ let esponScheduler = null;
 
 async function initializeWebSocketBroadcaster() {
     try {
+        // Load the broadcaster
         const { WebSocketBroadcaster } = require('./services/websocket-broadcaster');
         broadcaster = new WebSocketBroadcaster(io);
         console.log('✅ WebSocket Broadcaster initialized');
@@ -132,13 +143,16 @@ async function startESPNScheduler() {
     try {
         await ensureDatabaseInitialized();
         
+        // Load ESPN scheduler
         const espnScheduler = require('./services/espn-scheduler');
         
+        // Connect broadcaster to scheduler
         if (broadcaster) {
             espnScheduler.setBroadcaster(broadcaster);
             console.log('✅ ESPN Scheduler connected to WebSocket Broadcaster');
         }
         
+        // Start the scheduler
         await espnScheduler.startESPNScheduler();
         console.log('✅ ESPN Scheduler started (30-second sync intervals)');
         
@@ -152,6 +166,7 @@ async function startESPNScheduler() {
 // ROUTE HANDLERS
 // ============================================
 
+// Health check
 app.get('/health', (req, res) => {
     res.json({ 
         status: 'ok',
@@ -162,6 +177,7 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Database initialization endpoint
 app.post('/api/admin/init-database', async (req, res, next) => {
     try {
         const initDB = require('./routes/database-init');
@@ -207,24 +223,20 @@ const routeFiles = [
     'oauth'
 ];
 
-const routeLoadPromises = routeFiles.map(async (file) => {
+// Load routes - MUST be synchronous before server starts
+routeFiles.forEach((file) => {
     try {
-        const routePath = `./routes/${file}`;
-        const route = require(routePath);
+        const route = require(`./routes/${file}`);
         app.use(`/api/${file}`, route);
         console.log(`✅ Route loaded: /api/${file}`);
-        return true;
     } catch (error) {
         if (error.code === 'MODULE_NOT_FOUND') {
             console.warn(`⚠️  Route not found: /api/${file}`);
         } else {
             console.error(`❌ Error loading /api/${file}:`, error.message);
         }
-        return false;
     }
 });
-
-Promise.all(routeLoadPromises).catch(err => console.error('Route loading error:', err));
 
 // ============================================
 // WEBSOCKET EVENT HANDLERS
@@ -234,17 +246,20 @@ if (io) {
     io.on('connection', (socket) => {
         console.log(`👥 Client connected: ${socket.id}`);
         
+        // Client subscribes to sport
         socket.on('subscribe_sport', (sport) => {
             socket.join(`sport:${sport}`);
             console.log(`📡 Client ${socket.id} subscribed to ${sport}`);
             socket.emit('subscribed', { sport, status: 'ok' });
         });
         
+        // Client unsubscribes from sport
         socket.on('unsubscribe_sport', (sport) => {
             socket.leave(`sport:${sport}`);
             console.log(`📡 Client ${socket.id} unsubscribed from ${sport}`);
         });
         
+        // Heartbeat to keep connection alive
         socket.on('ping', () => {
             socket.emit('pong');
         });
@@ -261,6 +276,7 @@ if (io) {
 // ERROR HANDLING
 // ============================================
 
+// 404 handler
 app.use((req, res) => {
     res.status(404).json({
         error: 'Not Found',
@@ -269,6 +285,7 @@ app.use((req, res) => {
     });
 });
 
+// Global error handler
 app.use((error, req, res, next) => {
     console.error('❌ Unhandled error:', error);
     res.status(error.status || 500).json({
@@ -286,18 +303,22 @@ const PORT = process.env.PORT || 5000;
 
 async function startServer() {
     try {
+        // Ensure database is initialized
         console.log('⏳ Initializing database...');
         await ensureDatabaseInitialized();
         console.log('✅ Database ready');
         
+        // Initialize WebSocket broadcaster
         console.log('⏳ Initializing WebSocket broadcaster...');
         await initializeWebSocketBroadcaster();
         console.log('✅ WebSocket broadcaster ready');
         
+        // Start ESPN scheduler (connects to broadcaster)
         console.log('⏳ Starting ESPN scheduler...');
         await startESPNScheduler();
         console.log('✅ ESPN scheduler running');
         
+        // Start the server
         server.listen(PORT, () => {
             console.log(`
 ╔════════════════════════════════════════════════════════╗
@@ -323,6 +344,7 @@ async function startServer() {
     }
 }
 
+// Handle graceful shutdown
 process.on('SIGTERM', () => {
     console.log('⏹️  SIGTERM received - shutting down gracefully...');
     server.close(() => {
@@ -339,7 +361,7 @@ process.on('SIGINT', () => {
     });
 });
 
+// Start the server
 startServer();
 
 module.exports = app;
-                
