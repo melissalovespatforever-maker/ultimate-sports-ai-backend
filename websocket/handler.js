@@ -8,6 +8,7 @@ const OddsHandler = require('./odds-handler');
 const MatchesHandler = require('./matches-handler');
 const ScoresHandler = require('./scores-handler');
 const PicksHandler = require('./picks-handler');
+const ChatHandler = require('./chat-handler');
 const { setupCompetitionsWebSocket } = require('./competitions-handler');
 
 const setupWebSocket = (io) => {
@@ -15,6 +16,7 @@ const setupWebSocket = (io) => {
     const matchesHandler = new MatchesHandler(io);
     const scoresHandler = new ScoresHandler(io);
     const picksHandler = new PicksHandler(io);
+    const chatHandler = new ChatHandler(io);
     
     // Setup competitions namespace (Phase 18)
     setupCompetitionsWebSocket(io);
@@ -281,7 +283,13 @@ const setupWebSocket = (io) => {
         
         matchesHandler,
         scoresHandler,
-        picksHandler
+        picksHandler,
+        chatHandler,
+        
+        // Chat methods
+        sendSystemMessage: (channel, message) => {
+            chatHandler.sendSystemMessage(channel, message);
+        }
     };
 };
 
