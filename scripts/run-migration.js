@@ -17,26 +17,41 @@ async function runMigration() {
         let migrationPath;
         const possiblePaths = [
             path.join(__dirname, '../migrations/003_ai_coaches_performance.sql'),  // Local development (/backend/scripts)
-            '/app/backend/migrations/003_ai_coaches_performance.sql',              // Railway with backend folder
-            '/app/migrations/003_ai_coaches_performance.sql',                      // Alternative Railway path
-            path.join('/app', 'backend', 'migrations', '003_ai_coaches_performance.sql') // Explicit path
+            '/app/migrations/003_ai_coaches_performance.sql',                      // Railway (files copied to /app root)
+            '/app/backend/migrations/003_ai_coaches_performance.sql'               // Fallback
         ];
         
-        console.log(`📍 Looking for migration file. Current __dirname: ${__dirname}`);
+        console.log(`📍 Looking for migration file from __dirname: ${__dirname}`);
         
+        let migrationFound = false;
         for (const filepath of possiblePaths) {
-            console.log(`   Checking: ${filepath}`);
-            if (fs.existsSync(filepath)) {
-                console.log(`   ✅ Found!`);
-                migrationPath = filepath;
-                break;
+            console.log(`   Trying: ${filepath}`);
+            try {
+                if (fs.existsSync(filepath)) {
+                    console.log(`   ✅ Found at: ${filepath}`);
+                    migrationPath = filepath;
+                    migrationFound = true;
+                    break;
+                }
+            } catch (e) {
+                console.log(`   Error checking path: ${e.message}`);
             }
         }
         
-        if (!migrationPath) {
-            console.error(`❌ Migration file not found at any of these locations:`);
+        if (!migrationFound) {
+            console.error(`\n❌ Migration file NOT found!`);
+            console.error(`Checked these locations:`);
             possiblePaths.forEach(p => console.error(`   - ${p}`));
-            throw new Error(`Migration file not found`);
+            console.error(`\n📂 Current app structure:`);
+            try {
+                if (fs.existsSync('/app')) {
+                    const appFiles = fs.readdirSync('/app').slice(0, 20);
+                    appFiles.forEach(f => console.error(`   /app/${f}`));
+                }
+            } catch (e) {
+                console.error(`   Could not read /app`);
+            }
+            throw new Error(`Migration file not found - see debug info above`);
         }
         
         const migration = fs.readFileSync(migrationPath, 'utf8');
