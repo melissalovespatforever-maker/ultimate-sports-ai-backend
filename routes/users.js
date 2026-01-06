@@ -4,7 +4,7 @@
 // ============================================
 
 const express = require('express');
-const { query } = require('../config/database');
+const { query, pool } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const Joi = require('joi');
 
@@ -161,6 +161,64 @@ router.get('/leaderboard', async (req, res, next) => {
         res.json({ leaderboard: result.rows });
     } catch (error) {
         console.error('Error fetching leaderboard:', error);
+        next(error);
+    }
+});
+
+// POST /api/users/sync-stats - REQUIRES AUTH
+router.post('/sync-stats', authenticateToken, async (req, res, next) => {
+    try {
+        if (!req.user || !req.user.id) {
+            return res.status(401).json({
+                error: 'Unauthorized',
+                message: 'User not authenticated'
+            });
+        }
+
+        const schema = Joi.object({
+            wins: Joi.number().integer().min(0).default(0),
+            losses: Joi.number().integer().min(0).default(0),
+            totalGames: Joi.number().integer().min(0).default(0),
+            streak: Joi.number().integer().min(0).default(0),
+            game: Joi.string().default('Reconciliation')
+        });
+
+        const { error, value } = schema.validate(req.body);
+        if (error) {
+            return res.status(400).json({
+                error: 'Validation Error',
+                message: error.details[0].message
+            });
+        }
+
+        const { wins, losses, totalGames, streak } = value;
+
+        // Perform bulk update (incrementing existing stats with guest stats)
+        const result = await query(
+            `UPDATE users SET 
+                wins = wins + $1, 
+                losses = losses + $2, 
+                total_picks = total_picks + $3,
+                current_streak = GREATEST(current_streak, $4),
+                best_streak = GREATEST(best_streak, $4)
+             WHERE id = $5
+             RETURNING id, wins, losses, total_picks, current_streak, best_streak`,
+            [wins, losses, totalGames, streak, req.user.id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                error: 'Not Found',
+                message: 'User not found'
+            });
+        }
+
+        res.json({
+            message: 'Stats synchronized successfully',
+            stats: result.rows[0]
+        });
+    } catch (error) {
+        console.error('Error synchronizing stats:', error);
         next(error);
     }
 });

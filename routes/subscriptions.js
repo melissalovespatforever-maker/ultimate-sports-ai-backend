@@ -5,109 +5,15 @@
 
 const express = require('express');
 const { query, transaction } = require('../config/database');
-const { authenticateToken, optionalAuth } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Optional: Try to load email service, but don't fail if it's not available
-let emailService = null;
-try {
-    const EmailService = require('../services/email-service');
-    emailService = new EmailService();
-    console.log('✅ Email service initialized');
-} catch (error) {
-    console.warn('⚠️ Email service not available:', error.message);
-}
-
 // ============================================
-// PUBLIC ROUTES (optional auth)
+// MIDDLEWARE
 // ============================================
 
-/**
- * GET /api/subscriptions/status
- * Get current subscription status for user
- * HARDENED: Returns safe defaults instead of 500 errors
- */
-router.get('/status', optionalAuth, async (req, res) => {
-    try {
-        console.log('📋 /status endpoint called');
-        
-        // Get userId - be defensive
-        let userId = null;
-        if (req.user) {
-            userId = req.user.id || req.user.userId;
-            console.log(`✅ User found: ${userId}`);
-        }
-
-        if (!userId) {
-            console.warn('⚠️ No user ID in request, returning free tier');
-            return res.status(200).json({
-                success: true,
-                subscriptionTier: 'free',
-                subscriptionStatus: 'inactive',
-                message: 'No user authenticated - returning free tier'
-            });
-        }
-
-        // Get user email for convenience
-        const userEmail = req.user?.email || null;
-
-        // Query with maximum defensiveness
-        let subscription = null;
-        
-        try {
-            console.log(`🔍 Querying subscriptions for user ${userId}`);
-            const result = await query(
-                `SELECT id, user_id, plan_name, price, status, started_at, billing_cycle
-                 FROM subscriptions 
-                 WHERE user_id = $1
-                 LIMIT 1`,
-                [userId]
-            );
-
-            if (result?.rows?.[0]) {
-                subscription = result.rows[0];
-                console.log(`✅ Found subscription: ${subscription.plan_name}`);
-            } else {
-                console.log(`ℹ️ No subscription record found`);
-            }
-        } catch (dbError) {
-            console.error('⚠️ Database query failed:', dbError.message);
-            // Don't throw - return safe default instead
-        }
-
-        // Always return a successful response
-        return res.status(200).json({
-            success: true,
-            subscriptionId: subscription?.id || null,
-            userId: userId,
-            subscriptionTier: subscription?.plan_name || 'free',
-            subscriptionStatus: subscription?.status || 'inactive',
-            price: subscription?.price || null,
-            billingCycle: subscription?.billing_cycle || null,
-            startsAt: subscription?.started_at || null,
-            email: userEmail,
-            message: subscription ? 'Active subscription' : 'No subscription found'
-        });
-
-    } catch (error) {
-        console.error('❌ CRITICAL ERROR in /status:', error.message);
-        
-        // Last resort - always return something
-        return res.status(200).json({
-            success: false,
-            subscriptionTier: 'free',
-            subscriptionStatus: 'inactive',
-            message: 'Service temporarily unavailable'
-        });
-    }
-});
-
-// ============================================
-// PROTECTED ROUTES (require auth)
-// ============================================
-
-// Require authentication for all other subscription routes
+// Require authentication for all subscription routes
 router.use(authenticateToken);
 
 // ============================================
@@ -115,201 +21,145 @@ router.use(authenticateToken);
 // ============================================
 
 /**
- * POST /api/subscriptions/create-subscription
- * Create a new subscription (simplified - no actual PayPal integration)
+ * POST /api/subscriptions/activate-manual
+ * Manually activate subscription after manual PayPal payment
  */
-router.post('/create-subscription', async (req, res, next) => {
+router.post('/activate-manual', async (req, res, next) => {
     try {
-        const userId = req.user.id || req.user.userId;
-        const { tier, amount } = req.body;
+        const userId = req.user.userId;
+        const { paypalSubscriptionId, tier, amount } = req.body;
 
         // Validate input
-        if (!tier || !amount) {
+        if (!paypalSubscriptionId || !tier || !amount) {
             return res.status(400).json({
-                success: false,
-                error: 'Missing required fields: tier, amount'
+                error: 'Missing required fields: paypalSubscriptionId, tier, amount'
             });
         }
 
-        if (!['pro', 'vip'].includes(tier.toLowerCase())) {
+        if (!['pro', 'vip'].includes(tier)) {
             return res.status(400).json({
-                success: false,
                 error: 'Invalid tier. Must be pro or vip'
             });
         }
 
-        // Generate a subscription ID
-        const subscriptionId = `sub_${Date.now()}_${userId}`;
+        // Use transaction for atomicity
+        const result = await transaction(async (client) => {
+            // Get current user subscription status
+            const userResult = await client.query(
+                'SELECT subscription_tier FROM users WHERE id = $1',
+                [userId]
+            );
 
-        console.log(`✅ Created subscription for user ${userId}: ${tier} ($${amount})`);
+            if (userResult.rows.length === 0) {
+                throw new Error('User not found');
+            }
+
+            const previousTier = userResult.rows[0].subscription_tier;
+
+            // Update user subscription
+            const updateResult = await client.query(
+                `UPDATE users 
+                 SET paypal_subscription_id = $1,
+                     subscription_status = $2,
+                     subscription_tier = $3,
+                     subscription_starts_at = CURRENT_TIMESTAMP,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $4
+                 RETURNING *`,
+                [paypalSubscriptionId, 'active', tier, userId]
+            );
+
+            const updatedUser = updateResult.rows[0];
+
+            // Create payment record
+            await client.query(
+                `INSERT INTO payments (user_id, paypal_subscription_id, amount, tier, status, payment_id, created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+                 ON CONFLICT (payment_id) DO NOTHING`,
+                [userId, paypalSubscriptionId, amount, tier, 'completed', `manual-${Date.now()}`]
+            );
+
+            // Create subscription change log
+            await client.query(
+                `INSERT INTO subscription_changes (user_id, from_tier, to_tier, reason, paypal_subscription_id)
+                 VALUES ($1, $2, $3, $4, $5)`,
+                [userId, previousTier || 'free', tier, 'upgrade', paypalSubscriptionId]
+            );
+
+            // Create audit log
+            await client.query(
+                `INSERT INTO audit_logs (user_id, action, details)
+                 VALUES ($1, $2, $3)`,
+                [userId, 'manual_subscription_activation', JSON.stringify({
+                    tier,
+                    amount,
+                    paypalSubscriptionId,
+                    timestamp: new Date().toISOString()
+                })]
+            );
+
+            return updatedUser;
+        });
 
         res.json({
             success: true,
-            subscription: {
-                id: subscriptionId,
-                tier: tier.toLowerCase(),
-                amount: amount,
-                status: 'active'
-            },
-            message: 'Subscription created successfully'
+            message: `Subscription activated for tier: ${tier}`,
+            user: {
+                id: result.id,
+                username: result.username,
+                email: result.email,
+                subscription_tier: result.subscription_tier,
+                subscription_status: result.subscription_status
+            }
         });
 
     } catch (error) {
-        console.error('❌ Error creating subscription:', error);
+        console.error('❌ Error activating subscription:', error);
         res.status(500).json({
-            success: false,
-            error: 'Failed to create subscription',
+            error: 'Failed to activate subscription',
             message: error.message
         });
     }
 });
 
 /**
- * POST /api/subscriptions/activate-manual
- * Manually activate subscription after manual PayPal payment
- * HARDENED: Returns 200 with safe defaults instead of 500 errors
+ * GET /api/subscriptions/status
+ * Get current subscription status for user
  */
-router.post('/activate-manual', async (req, res) => {
+router.get('/status', async (req, res, next) => {
     try {
-        console.log('💳 /activate-manual endpoint called');
-        
-        // Get userId - be defensive
-        let userId = null;
-        if (req.user) {
-            userId = req.user.id || req.user.userId;
+        const userId = req.user.userId;
+
+        const result = await query(
+            `SELECT 
+                id, email, subscription_tier, subscription_status,
+                subscription_starts_at, subscription_ends_at, 
+                paypal_subscription_id, last_payment_date
+             FROM users 
+             WHERE id = $1`,
+            [userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
         }
 
-        if (!userId) {
-            console.warn('⚠️ No user ID found');
-            return res.status(200).json({
-                success: false,
-                error: 'Authentication required'
-            });
-        }
+        const user = result.rows[0];
 
-        // Validate request body
-        const { paypalSubscriptionId, tier, amount } = req.body || {};
-
-        if (!paypalSubscriptionId || !tier || !amount) {
-            return res.status(200).json({
-                success: false,
-                error: 'Missing required fields: paypalSubscriptionId, tier, amount'
-            });
-        }
-
-        const tierLower = tier.toLowerCase();
-        if (!['pro', 'vip'].includes(tierLower)) {
-            return res.status(200).json({
-                success: false,
-                error: 'Invalid tier. Must be pro or vip'
-            });
-        }
-
-        console.log(`💳 Activating ${tier} subscription for user ${userId}`);
-
-        // Initialize user object with minimal defaults
-        let updatedUser = {
-            id: userId,
-            username: 'User',
-            email: 'user@example.com',
-            subscription_tier: tierLower,
-            subscription_status: 'active'
-        };
-
-        // Try to fetch user details from database (gracefully degrade if fails)
-        try {
-            console.log(`🔍 Fetching user ${userId} from database`);
-            const userResult = await query(
-                `SELECT id, username, email FROM users WHERE id = $1`,
-                [userId]
-            );
-
-            if (userResult?.rows?.[0]) {
-                updatedUser = { ...updatedUser, ...userResult.rows[0] };
-                console.log(`✅ User found: ${updatedUser.email}`);
-                
-                // Try to update subscription tier
-                try {
-                    await query(
-                        `UPDATE users SET subscription_tier = $1 WHERE id = $2`,
-                        [tierLower, userId]
-                    );
-                    console.log(`✅ Database updated with tier: ${tierLower}`);
-                } catch (updateErr) {
-                    console.warn('⚠️ Database update failed, continuing:', updateErr.message);
-                }
-            } else {
-                console.warn('⚠️ User not found in database');
-            }
-        } catch (dbErr) {
-            console.warn('⚠️ Database query failed:', dbErr.message);
-        }
-
-        // Send receipt email asynchronously (non-blocking)
-        if (emailService) {
-            setImmediate(async () => {
-                try {
-                    const tierName = tier.toUpperCase();
-                    const tierPricing = { 'pro': 14.99, 'vip': 29.99 };
-                    const tierFeatures = {
-                        'pro': [
-                            'All FREE features',
-                            'Unlimited AI predictions',
-                            'Advanced analytics dashboard',
-                            'Real-time odds comparison',
-                            'Priority customer support'
-                        ],
-                        'vip': [
-                            'Everything in PRO',
-                            'Exclusive AI models',
-                            '1-on-1 coaching sessions',
-                            'Early feature access',
-                            'VIP community access',
-                            'Custom alerts & notifications'
-                        ]
-                    };
-                    const paymentData = {
-                        plan: tierName,
-                        amount: tierPricing[tierLower] || amount,
-                        billingPeriod: 'Monthly',
-                        transactionId: paypalSubscriptionId,
-                        nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-                        features: tierFeatures[tierLower] || []
-                    };
-                    const emailResult = await emailService.sendPaymentReceiptEmail(updatedUser, paymentData);
-                    if (emailResult?.success) {
-                        console.log(`📧 Email sent to ${updatedUser.email}`);
-                    } else {
-                        console.warn(`⚠️ Email failed:`, emailResult?.error);
-                    }
-                } catch (emailError) {
-                    console.error('❌ Email error:', emailError.message);
-                }
-            });
-        }
-
-        // Always return success
-        return res.status(200).json({
-            success: true,
-            message: `Subscription activated for tier: ${tier}`,
-            emailSent: emailService ? true : false,
-            user: {
-                id: updatedUser.id,
-                username: updatedUser.username,
-                email: updatedUser.email,
-                subscription_tier: updatedUser.subscription_tier,
-                subscription_status: updatedUser.subscription_status
-            }
+        res.json({
+            subscriptionTier: user.subscription_tier,
+            subscriptionStatus: user.subscription_status,
+            startsAt: user.subscription_starts_at,
+            endsAt: user.subscription_ends_at,
+            paypalSubscriptionId: user.paypal_subscription_id,
+            lastPaymentDate: user.last_payment_date
         });
 
     } catch (error) {
-        console.error('❌ CRITICAL ERROR in activate-manual:', error.message);
-        
-        // Last resort - always return 200 with safe data
-        return res.status(200).json({
-            success: false,
-            error: 'Service temporarily unavailable',
-            message: error.message.substring(0, 100)
+        console.error('❌ Error getting subscription status:', error);
+        res.status(500).json({
+            error: 'Failed to get subscription status',
+            message: error.message
         });
     }
 });
@@ -320,7 +170,7 @@ router.post('/activate-manual', async (req, res) => {
  */
 router.post('/cancel', async (req, res, next) => {
     try {
-        const userId = req.user.id || req.user.userId;
+        const userId = req.user.userId;
 
         const result = await transaction(async (client) => {
             // Get current subscription
@@ -386,7 +236,7 @@ router.post('/cancel', async (req, res, next) => {
  */
 router.get('/history', async (req, res, next) => {
     try {
-        const userId = req.user.id || req.user.userId;
+        const userId = req.user.userId;
 
         const result = await query(
             `SELECT 
@@ -417,7 +267,7 @@ router.get('/history', async (req, res, next) => {
  */
 router.get('/payment-history', async (req, res, next) => {
     try {
-        const userId = req.user.id || req.user.userId;
+        const userId = req.user.userId;
 
         const result = await query(
             `SELECT 
@@ -448,7 +298,7 @@ router.get('/payment-history', async (req, res, next) => {
  */
 router.post('/reactivate', async (req, res, next) => {
     try {
-        const userId = req.user.id || req.user.userId;
+        const userId = req.user.userId;
         const { tier } = req.body;
 
         if (!['pro', 'vip'].includes(tier)) {

@@ -374,7 +374,7 @@ const COACHES = [
         specialty: 'basketball_nba',
         avatar: '🤖',
         tier: 'PRO',
-        strategy: 'value_betting'
+        strategy: 'value_betting' // Focuses on EV and line value
     },
     {
         id: 2,
@@ -382,7 +382,7 @@ const COACHES = [
         specialty: 'americanfootball_nfl',
         avatar: '🏈',
         tier: 'VIP',
-        strategy: 'sharp_money'
+        strategy: 'sharp_money' // Follows line movement
     },
     {
         id: 3,
@@ -390,7 +390,7 @@ const COACHES = [
         specialty: 'baseball_mlb',
         avatar: '⚾',
         tier: 'PRO',
-        strategy: 'consensus'
+        strategy: 'consensus' // Follows sportsbook consensus
     },
     {
         id: 4,
@@ -403,7 +403,7 @@ const COACHES = [
     {
         id: 5,
         name: 'El Futbolista',
-        specialty: 'soccer_epl',
+        specialty: 'soccer_epl', // English Premier League (most active)
         avatar: '⚽',
         tier: 'VIP',
         strategy: 'sharp_money'
@@ -411,7 +411,7 @@ const COACHES = [
     {
         id: 6,
         name: 'The Gridiron Guru',
-        specialty: 'americanfootball_ncaaf',
+        specialty: 'americanfootball_ncaaf', // College Football
         avatar: '🏈',
         tier: 'PRO',
         strategy: 'consensus'
@@ -419,7 +419,7 @@ const COACHES = [
     {
         id: 7,
         name: 'Ace of Aces',
-        specialty: 'tennis_atp',
+        specialty: 'tennis_atp', // ATP Tennis
         avatar: '🎾',
         tier: 'PRO',
         strategy: 'value_betting'
@@ -427,7 +427,7 @@ const COACHES = [
     {
         id: 8,
         name: 'The Brawl Boss',
-        specialty: 'mma_mixed_martial_arts',
+        specialty: 'mma_mixed_martial_arts', // MMA
         avatar: '🥊',
         tier: 'VIP',
         strategy: 'sharp_money'
@@ -435,7 +435,7 @@ const COACHES = [
     {
         id: 9,
         name: 'The Green Master',
-        specialty: 'golf_pga',
+        specialty: 'golf_pga', // PGA Golf
         avatar: '⛳',
         tier: 'PRO',
         strategy: 'consensus'
@@ -443,7 +443,7 @@ const COACHES = [
     {
         id: 10,
         name: 'March Madness',
-        specialty: 'basketball_ncaab',
+        specialty: 'basketball_ncaab', // College Basketball
         avatar: '🏀',
         tier: 'PRO',
         strategy: 'value_betting'
@@ -451,7 +451,7 @@ const COACHES = [
     {
         id: 11,
         name: 'Pixel Prophet',
-        specialty: 'esports_lol',
+        specialty: 'esports_lol', // League of Legends esports
         avatar: '🎮',
         tier: 'VIP',
         strategy: 'sharp_money'
@@ -511,10 +511,14 @@ router.get('/picks', async (req, res) => {
         
         for (const coach of COACHES) {
             try {
+                // Fetch real games for this coach's sport
                 const games = await fetchSportGames(coach.specialty);
                 
                 if (games && games.length > 0) {
+                    // Analyze games and generate picks based on coach's strategy
                     const picks = analyzeGamesForPicks(games, coach);
+                    
+                    // Get coach stats (from database if available, else default)
                     const stats = await getCoachStats(coach.id);
                     
                     coachesWithPicks.push({
@@ -522,9 +526,10 @@ router.get('/picks', async (req, res) => {
                         accuracy: stats.accuracy,
                         totalPicks: stats.totalPicks,
                         streak: stats.streak,
-                        recentPicks: picks.slice(0, 3)
+                        recentPicks: picks.slice(0, 3) // Top 3 picks
                     });
                 } else {
+                    // Even without games, return coach with mock picks
                     const stats = await getCoachStats(coach.id);
                     coachesWithPicks.push({
                         ...coach,
@@ -544,6 +549,7 @@ router.get('/picks', async (req, res) => {
                 }
             } catch (error) {
                 console.error(`Failed to generate picks for ${coach.name}:`, error.message);
+                // Continue without this coach's picks
             }
         }
         
@@ -554,6 +560,7 @@ router.get('/picks', async (req, res) => {
             coaches: coachesWithPicks
         };
         
+        // Cache the result
         cache.set(cacheKey, {
             data: result,
             timestamp: Date.now()
@@ -565,6 +572,7 @@ router.get('/picks', async (req, res) => {
     } catch (error) {
         console.error('❌ Error generating AI picks:', error);
         
+        // Fallback: Return all coaches with mock data if API fails
         const mockResult = {
             success: true,
             timestamp: new Date().toISOString(),
@@ -631,6 +639,7 @@ router.get('/:id', async (req, res) => {
  */
 async function fetchSportGames(sport) {
     try {
+        // Try The Odds API first (for betting lines)
         if (process.env.THE_ODDS_API_KEY) {
             const response = await axios.get(
                 `https://api.the-odds-api.com/v4/sports/${sport}/odds`,
@@ -651,11 +660,13 @@ async function fetchSportGames(sport) {
             }
         }
         
+        // Fallback: Fetch from ESPN API
         console.log(`📺 Falling back to ESPN for ${sport}`);
         return await fetchESPNGames(sport);
         
     } catch (error) {
         console.error(`Error fetching ${sport} games:`, error.message);
+        // Try ESPN as fallback
         try {
             return await fetchESPNGames(sport);
         } catch (espnError) {
@@ -670,6 +681,7 @@ async function fetchSportGames(sport) {
  */
 async function fetchESPNGames(sport) {
     try {
+        // Map sport codes to ESPN endpoints
         const espnSportMap = {
             'basketball_nba': 'nba',
             'americanfootball_nfl': 'nfl',
@@ -678,6 +690,7 @@ async function fetchESPNGames(sport) {
             'soccer_epl': 'eng.1',
             'americanfootball_ncaaf': 'college-football',
             'basketball_ncaab': 'mens-college-basketball'
+            // Tennis, MMA, Golf, Esports - ESPN API limited, will use odds API only
         };
         
         const espnSport = espnSportMap[sport];
@@ -708,11 +721,13 @@ async function fetchESPNGames(sport) {
             return [];
         }
         
+        // Convert ESPN format to Odds API format and add injury data
         const games = await Promise.all(response.data.events.map(async event => {
             const competition = event.competitions[0];
             const homeTeam = competition.competitors.find(t => t.homeAway === 'home');
             const awayTeam = competition.competitors.find(t => t.homeAway === 'away');
             
+            // Fetch injury data for both teams
             const injuries = await fetchTeamInjuries(espnSport, homeTeam?.team?.id, awayTeam?.team?.id);
             
             return {
@@ -724,13 +739,13 @@ async function fetchESPNGames(sport) {
                 away_team: awayTeam?.team?.displayName || 'Away',
                 home_team_id: homeTeam?.team?.id,
                 away_team_id: awayTeam?.team?.id,
-                bookmakers: [],
-                injuries: injuries
+                bookmakers: [], // ESPN doesn't provide odds, will use mock
+                injuries: injuries // Add injury data
             };
         }));
         
         console.log(`✅ Fetched ${games.length} games from ESPN for ${sport}`);
-        return games.slice(0, 5);
+        return games.slice(0, 5); // Limit to 5 games
         
     } catch (error) {
         console.error(`ESPN API error for ${sport}:`, error.message);
@@ -748,6 +763,7 @@ async function fetchTeamInjuries(sport, homeTeamId, awayTeamId) {
             away: []
         };
         
+        // Fetch injuries for home team
         if (homeTeamId) {
             try {
                 const homeResponse = await axios.get(
@@ -763,13 +779,14 @@ async function fetchTeamInjuries(sport, homeTeamId, awayTeamId) {
                         type: injury.type || 'Injury',
                         details: injury.details?.type || injury.shortComment || '',
                         longComment: injury.longComment || ''
-                    })).slice(0, 5);
+                    })).slice(0, 5); // Top 5 injuries
                 }
             } catch (err) {
                 console.warn(`Could not fetch home team injuries: ${err.message}`);
             }
         }
         
+        // Fetch injuries for away team
         if (awayTeamId) {
             try {
                 const awayResponse = await axios.get(
@@ -785,7 +802,7 @@ async function fetchTeamInjuries(sport, homeTeamId, awayTeamId) {
                         type: injury.type || 'Injury',
                         details: injury.details?.type || injury.shortComment || '',
                         longComment: injury.longComment || ''
-                    })).slice(0, 5);
+                    })).slice(0, 5); // Top 5 injuries
                 }
             } catch (err) {
                 console.warn(`Could not fetch away team injuries: ${err.message}`);
@@ -827,6 +844,7 @@ function analyzeGamesForPicks(games, coach) {
         }
     });
     
+    // Sort by confidence (highest first)
     return picks.sort((a, b) => b.confidence - a.confidence);
 }
 
@@ -834,30 +852,38 @@ function analyzeGamesForPicks(games, coach) {
  * Analyze a single game using market data
  */
 function analyzeGame(game, strategy) {
+    // Check if we have real odds data from sportsbooks
     const hasRealOdds = game.bookmakers && game.bookmakers.length > 0;
     
     if (!hasRealOdds) {
+        // Use ESPN data with simulated analysis
         return analyzeGameWithoutOdds(game, strategy);
     }
     
+    // Calculate consensus odds across all sportsbooks
     const consensus = calculateConsensus(game.bookmakers);
     
     if (!consensus.valid) {
         return analyzeGameWithoutOdds(game, strategy);
     }
     
+    // Calculate confidence based on strategy
     let confidence = 50;
     let recommendation = '';
     let odds = 0;
     let reasoning = [];
     
+    // Strategy: Value Betting
     if (strategy === 'value_betting') {
+        // Find best value (highest odds)
         if (consensus.homeML.avg < -150) {
+            // Heavy favorite, look for value on underdog
             recommendation = `${game.away_team} ML`;
             odds = Math.round(consensus.awayML.best);
             confidence += 15;
             reasoning.push('Value found on underdog');
         } else if (Math.abs(consensus.homeML.avg - consensus.awayML.avg) < 50) {
+            // Close matchup, pick value side
             if (consensus.homeML.best < consensus.awayML.best) {
                 recommendation = `${game.home_team} ML`;
                 odds = Math.round(consensus.homeML.best);
@@ -868,7 +894,11 @@ function analyzeGame(game, strategy) {
             confidence += 10;
             reasoning.push('Close matchup with value opportunity');
         }
-    } else if (strategy === 'sharp_money') {
+    }
+    
+    // Strategy: Sharp Money (line movement)
+    else if (strategy === 'sharp_money') {
+        // Simplified: pick favorite if consensus is strong
         if (consensus.homeML.avg < consensus.awayML.avg) {
             recommendation = `${game.home_team} ML`;
             odds = Math.round(consensus.homeML.best);
@@ -878,7 +908,11 @@ function analyzeGame(game, strategy) {
         }
         confidence += 12;
         reasoning.push('Line showing sharp action');
-    } else if (strategy === 'consensus') {
+    }
+    
+    // Strategy: Consensus
+    else if (strategy === 'consensus') {
+        // Pick the side with lowest variance (sportsbooks agree)
         if (consensus.homeML.variance < 15 && consensus.homeML.avg < -120) {
             recommendation = `${game.home_team} ML`;
             odds = Math.round(consensus.homeML.best);
@@ -892,25 +926,31 @@ function analyzeGame(game, strategy) {
         }
     }
     
+    // Add bookmaker count bonus
     if (consensus.bookmakerCount >= 10) {
         confidence += 8;
         reasoning.push(`${consensus.bookmakerCount} sportsbooks analyzed`);
     }
     
+    // Low variance bonus (sportsbooks agree)
     if (consensus.homeML.variance < 10 || consensus.awayML.variance < 10) {
         confidence += 12;
         reasoning.push('Low variance - strong agreement');
     }
     
+    // Factor in injury reports if available
     if (game.injuries) {
         const injuryImpact = analyzeInjuryImpact(game.injuries);
         
+        // Adjust confidence based on injuries
         if (recommendation.includes(game.home_team)) {
+            // Home team pick - reduce confidence if home has injuries
             confidence -= injuryImpact.homeImpact;
             if (injuryImpact.homeImpact > 5) {
                 reasoning.push(`${game.injuries.home.length} home team injuries factored`);
             }
         } else if (recommendation.includes(game.away_team)) {
+            // Away team pick - reduce confidence if away has injuries
             confidence -= injuryImpact.awayImpact;
             if (injuryImpact.awayImpact > 5) {
                 reasoning.push(`${game.injuries.away.length} away team injuries factored`);
@@ -925,7 +965,7 @@ function analyzeGame(game, strategy) {
     return {
         recommendation,
         odds,
-        confidence: Math.min(92, Math.max(45, confidence)),
+        confidence: Math.min(92, Math.max(45, confidence)), // Cap between 45-92%
         reasoning: reasoning.join('. ') + '.',
         injuries: game.injuries
     };
@@ -943,6 +983,7 @@ function calculateConsensus(bookmakers) {
         if (h2hMarket && h2hMarket.outcomes) {
             h2hMarket.outcomes.forEach(outcome => {
                 if (outcome.name && outcome.price) {
+                    // Determine if home or away based on position (home is usually first)
                     const isHome = h2hMarket.outcomes.indexOf(outcome) === 0;
                     if (isHome) {
                         homeMLOdds.push(outcome.price);
@@ -979,10 +1020,12 @@ function calculateConsensus(bookmakers) {
  * Uses team names, injury reports, and basic heuristics
  */
 function analyzeGameWithoutOdds(game, strategy) {
+    // Determine pick based on team names/history (simplified)
     const homeTeam = game.home_team;
     const awayTeam = game.away_team;
     
-    let confidence = 55;
+    // Simple heuristic: home team advantage
+    let confidence = 55; // Base confidence for home team
     let recommendation = `${homeTeam} ML`;
     let odds = -110;
     let reasoning = [];
@@ -990,19 +1033,23 @@ function analyzeGameWithoutOdds(game, strategy) {
     reasoning.push('Analysis based on ESPN live data');
     reasoning.push('Home team advantage factored in');
     
+    // Factor in injury reports
     if (game.injuries) {
         const injuryImpact = analyzeInjuryImpact(game.injuries);
         
         if (injuryImpact.homeImpact > injuryImpact.awayImpact) {
+            // Home team more affected by injuries - favor away team
             confidence -= injuryImpact.homeImpact;
             recommendation = `${awayTeam} ML`;
             odds = +120;
             reasoning.push(`Home team has ${game.injuries.home.length} key injuries`);
         } else if (injuryImpact.awayImpact > injuryImpact.homeImpact) {
+            // Away team more affected - favor home team
             confidence += Math.floor(injuryImpact.awayImpact / 2);
             reasoning.push(`Away team has ${game.injuries.away.length} key injuries`);
         }
         
+        // Add specific injury details to reasoning
         const criticalInjuries = [...game.injuries.home, ...game.injuries.away]
             .filter(inj => inj.status === 'Out' || inj.status === 'Doubtful');
         
@@ -1011,7 +1058,9 @@ function analyzeGameWithoutOdds(game, strategy) {
         }
     }
     
+    // Strategy-based adjustments
     if (strategy === 'value_betting') {
+        // Look for potential value (no real odds, so simulate)
         confidence += 8;
         reasoning.push('Potential value opportunity identified');
     } else if (strategy === 'sharp_money') {
@@ -1025,9 +1074,9 @@ function analyzeGameWithoutOdds(game, strategy) {
     return {
         recommendation,
         odds,
-        confidence: Math.min(75, confidence),
+        confidence: Math.min(75, confidence), // Cap at 75% without real odds
         reasoning: reasoning.join('. ') + '.',
-        injuries: game.injuries
+        injuries: game.injuries // Include injury data in response
     };
 }
 
@@ -1041,16 +1090,19 @@ function analyzeInjuryImpact(injuries) {
         awayImpact: 0
     };
     
+    // Calculate home team injury impact
     if (injuries.home && injuries.home.length > 0) {
         injuries.home.forEach(injury => {
+            // Weight injuries based on status
             if (injury.status === 'Out') {
-                impact.homeImpact += 5;
+                impact.homeImpact += 5; // Out = significant impact
             } else if (injury.status === 'Doubtful') {
-                impact.homeImpact += 3;
+                impact.homeImpact += 3; // Doubtful = moderate impact
             } else if (injury.status === 'Questionable') {
-                impact.homeImpact += 1;
+                impact.homeImpact += 1; // Questionable = minor impact
             }
             
+            // Extra weight for key positions (QB, PG, Pitcher, Goalie)
             const keyPositions = ['QB', 'PG', 'C', 'SP', 'G'];
             if (keyPositions.includes(injury.position)) {
                 impact.homeImpact += 3;
@@ -1058,6 +1110,7 @@ function analyzeInjuryImpact(injuries) {
         });
     }
     
+    // Calculate away team injury impact
     if (injuries.away && injuries.away.length > 0) {
         injuries.away.forEach(injury => {
             if (injury.status === 'Out') {
@@ -1083,6 +1136,7 @@ function analyzeInjuryImpact(injuries) {
  */
 async function getCoachStats(coachId) {
     try {
+        // Try to get from database if pool is available
         if (global.db && typeof global.db.query === 'function') {
             const result = await global.db.query(
                 'SELECT accuracy, total_picks as "totalPicks", current_streak as streak, roi FROM coach_stats WHERE coach_id = $1',
@@ -1103,18 +1157,19 @@ async function getCoachStats(coachId) {
         console.warn('Could not fetch from database, using defaults:', error.message);
     }
     
+    // Fallback to default stats matching frontend
     const baseStats = {
-        1: { accuracy: 74.2, totalPicks: 547, streak: 12, roi: '+24.8%' },
-        2: { accuracy: 71.8, totalPicks: 423, streak: 8, roi: '+31.2%' },
-        3: { accuracy: 69.4, totalPicks: 612, streak: 5, roi: '+18.6%' },
-        4: { accuracy: 72.6, totalPicks: 389, streak: 15, roi: '+28.4%' },
-        5: { accuracy: 70.3, totalPicks: 478, streak: 9, roi: '+22.1%' },
-        6: { accuracy: 68.9, totalPicks: 534, streak: 7, roi: '+19.3%' },
-        7: { accuracy: 73.1, totalPicks: 445, streak: 11, roi: '+26.7%' },
-        8: { accuracy: 75.3, totalPicks: 367, streak: 13, roi: '+32.8%' },
-        9: { accuracy: 67.8, totalPicks: 401, streak: 6, roi: '+17.2%' },
-        10: { accuracy: 70.5, totalPicks: 589, streak: 9, roi: '+21.4%' },
-        11: { accuracy: 76.2, totalPicks: 512, streak: 14, roi: '+29.6%' }
+        1: { accuracy: 74.2, totalPicks: 547, streak: 12, roi: '+24.8%' },  // The Analyst
+        2: { accuracy: 71.8, totalPicks: 423, streak: 8, roi: '+31.2%' },   // Sharp Shooter
+        3: { accuracy: 69.4, totalPicks: 612, streak: 5, roi: '+18.6%' },   // Data Dragon
+        4: { accuracy: 72.6, totalPicks: 389, streak: 15, roi: '+28.4%' },  // Ice Breaker
+        5: { accuracy: 70.3, totalPicks: 478, streak: 9, roi: '+22.1%' },   // El Futbolista
+        6: { accuracy: 68.9, totalPicks: 534, streak: 7, roi: '+19.3%' },   // The Gridiron Guru
+        7: { accuracy: 73.1, totalPicks: 445, streak: 11, roi: '+26.7%' },  // Ace of Aces
+        8: { accuracy: 75.3, totalPicks: 367, streak: 13, roi: '+32.8%' },  // The Brawl Boss
+        9: { accuracy: 67.8, totalPicks: 401, streak: 6, roi: '+17.2%' },   // The Green Master
+        10: { accuracy: 70.5, totalPicks: 589, streak: 9, roi: '+21.4%' },  // March Madness
+        11: { accuracy: 76.2, totalPicks: 512, streak: 14, roi: '+29.6%' }  // Pixel Prophet
     };
     
     return baseStats[coachId] || { accuracy: 0, totalPicks: 0, streak: 0, roi: '0.00%' };

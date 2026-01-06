@@ -20,13 +20,17 @@ const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'https://play.ros
 const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID;
 const APPLE_TEAM_ID = process.env.APPLE_TEAM_ID;
 const APPLE_KEY_ID = process.env.APPLE_KEY_ID;
-const APPLE_PRIVATE_KEY = process.env.APPLE_PRIVATE_KEY;
+const APPLE_PRIVATE_KEY = process.env.APPLE_PRIVATE_KEY; // PEM format
 const APPLE_REDIRECT_URI = process.env.APPLE_REDIRECT_URI || 'https://play.rosebud.ai/oauth/apple/callback';
 
 // ============================================
 // GOOGLE OAUTH (using native fetch)
 // ============================================
 
+/**
+ * POST /api/oauth/google/callback
+ * Exchange Google authorization code for user info
+ */
 router.post('/google/callback', async (req, res, next) => {
     try {
         const { code, codeVerifier, redirectUri } = req.body;
@@ -38,6 +42,7 @@ router.post('/google/callback', async (req, res, next) => {
             });
         }
         
+        // Exchange code for access token using native fetch
         const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
             method: 'POST',
             headers: {
@@ -63,6 +68,7 @@ router.post('/google/callback', async (req, res, next) => {
         const tokenData = await tokenResponse.json();
         const accessToken = tokenData.access_token;
         
+        // Get user info from Google
         const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
             headers: {
                 'Authorization': `Bearer ${accessToken}`
@@ -79,6 +85,7 @@ router.post('/google/callback', async (req, res, next) => {
         
         const userInfo = await userInfoResponse.json();
         
+        // Upsert user in database
         const { rows } = await query(
             `INSERT INTO users (
                 email, name, picture, oauth_provider, oauth_id, 
@@ -96,6 +103,7 @@ router.post('/google/callback', async (req, res, next) => {
         
         const user = rows[0];
         
+        // Generate JWT token
         const token = jwt.sign(
             { userId: user.id, email: user.email },
             process.env.JWT_SECRET || 'your-secret-key',
@@ -128,6 +136,10 @@ router.post('/google/callback', async (req, res, next) => {
 // APPLE SIGNIN (using native fetch)
 // ============================================
 
+/**
+ * POST /api/oauth/apple/callback
+ * Handle Apple Sign-In callback
+ */
 router.post('/apple/callback', async (req, res, next) => {
     try {
         const { code, user, id_token } = req.body;
@@ -139,6 +151,7 @@ router.post('/apple/callback', async (req, res, next) => {
             });
         }
         
+        // Exchange code for access token using native fetch
         const tokenResponse = await fetch('https://appleid.apple.com/auth/token', {
             method: 'POST',
             headers: {
@@ -163,9 +176,11 @@ router.post('/apple/callback', async (req, res, next) => {
         
         const tokenData = await tokenResponse.json();
         
+        // Decode ID token to get user info
         let userInfo;
         if (id_token) {
             try {
+                // ID token is JWT - decode without verification for now
                 const parts = id_token.split('.');
                 const decoded = JSON.parse(Buffer.from(parts[1], 'base64').toString());
                 userInfo = {
@@ -185,6 +200,7 @@ router.post('/apple/callback', async (req, res, next) => {
             });
         }
         
+        // Upsert user in database
         const { rows } = await query(
             `INSERT INTO users (
                 email, name, oauth_provider, oauth_id, 
@@ -200,6 +216,7 @@ router.post('/apple/callback', async (req, res, next) => {
         
         const dbUser = rows[0];
         
+        // Generate JWT token
         const token = jwt.sign(
             { userId: dbUser.id, email: dbUser.email },
             process.env.JWT_SECRET || 'your-secret-key',
@@ -237,7 +254,7 @@ function generateAppleClientSecret() {
     }
     
     const now = Math.floor(Date.now() / 1000);
-    const expiration = now + 15 * 60;
+    const expiration = now + 15 * 60; // 15 minutes
     
     const header = {
         alg: 'ES256',
@@ -252,6 +269,7 @@ function generateAppleClientSecret() {
         sub: APPLE_CLIENT_ID
     };
     
+    // This requires crypto for proper signing - fallback to simple JWT
     const crypto = require('crypto');
     
     try {
@@ -276,10 +294,15 @@ function generateAppleClientSecret() {
 // REFRESH TOKEN ENDPOINT
 // ============================================
 
+/**
+ * POST /api/oauth/refresh
+ * Refresh user's access token
+ */
 router.post('/refresh', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         
+        // Get user from database
         const { rows } = await query(
             'SELECT id, email, name FROM users WHERE id = $1',
             [userId]
@@ -294,6 +317,7 @@ router.post('/refresh', authenticateToken, async (req, res) => {
         
         const user = rows[0];
         
+        // Generate new token
         const token = jwt.sign(
             { userId: user.id, email: user.email },
             process.env.JWT_SECRET || 'your-secret-key',
@@ -318,6 +342,10 @@ router.post('/refresh', authenticateToken, async (req, res) => {
 // GET USER OAUTH STATUS
 // ============================================
 
+/**
+ * GET /api/oauth/status
+ * Check if user is authenticated and their OAuth provider
+ */
 router.get('/status', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.userId;

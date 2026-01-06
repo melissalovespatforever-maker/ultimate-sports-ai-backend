@@ -299,8 +299,6 @@ router.delete('/clear-data', async (req, res) => {
 // ESPN SCORES ENDPOINTS
 // ============================================
 
-const axios = require('axios');
-
 /**
  * GET /api/scores/sync
  * Fetches ESPN data and populates games table
@@ -401,6 +399,121 @@ router.get('/health', async (req, res) => {
 });
 
 // ============================================
+// SCHEDULER STATUS ENDPOINT
+// ============================================
+
+/**
+ * GET /api/admin/scheduler-status
+ * Check ESPN scheduler status and statistics
+ */
+router.get('/scheduler-status', (req, res) => {
+    try {
+        const espnScheduler = require('../services/espn-scheduler');
+        const status = espnScheduler.getSchedulerStatus();
+        
+        res.json({
+            success: true,
+            scheduler: status
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Unable to get scheduler status',
+            details: error.message
+        });
+    }
+});
+
+/**
+ * POST /api/admin/scheduler-reset
+ * Reset scheduler statistics
+ */
+router.post('/scheduler-reset', (req, res) => {
+    try {
+        const espnScheduler = require('../services/espn-scheduler');
+        espnScheduler.resetStats();
+        
+        res.json({
+            success: true,
+            message: 'Scheduler stats reset successfully'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Unable to reset scheduler stats',
+            details: error.message
+        });
+    }
+});
+
+/**
+ * POST /api/admin/scheduler-start
+ * Manually start ESPN scheduler
+ */
+router.post('/scheduler-start', async (req, res) => {
+    try {
+        const espnScheduler = require('../services/espn-scheduler');
+        const result = await espnScheduler.startESPNScheduler();
+        
+        res.json({
+            success: true,
+            message: 'ESPN Scheduler started successfully',
+            running: result
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Unable to start scheduler',
+            details: error.message
+        });
+    }
+});
+
+/**
+ * POST /api/admin/scheduler-stop
+ * Manually stop ESPN scheduler
+ */
+router.post('/scheduler-stop', (req, res) => {
+    try {
+        const espnScheduler = require('../services/espn-scheduler');
+        espnScheduler.stopESPNScheduler();
+        
+        res.json({
+            success: true,
+            message: 'ESPN Scheduler stopped successfully'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Unable to stop scheduler',
+            details: error.message
+        });
+    }
+});
+
+/**
+ * POST /api/admin/scheduler-manual-sync
+ * Manually trigger ESPN data sync
+ */
+router.post('/scheduler-manual-sync', async (req, res) => {
+    try {
+        const espnScheduler = require('../services/espn-scheduler');
+        await espnScheduler.performESPNSync();
+        
+        res.json({
+            success: true,
+            message: 'Manual ESPN sync completed'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Unable to perform manual sync',
+            details: error.message
+        });
+    }
+});
+
+// ============================================
 // ESPN FETCHING HELPER FUNCTIONS
 // ============================================
 
@@ -408,16 +521,27 @@ async function fetchESPNData(sport) {
     const endpoint = getESPNEndpoint(sport);
     
     try {
-        const response = await axios.get(endpoint, {
-            timeout: 10000,
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+
+        const response = await fetch(endpoint, {
+            signal: controller.signal,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
         });
+
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
         
-        if (!response.data || !response.data.events) return [];
+        if (!data || !data.events) return [];
         
-        return parseESPNEvents(response.data.events, sport);
+        return parseESPNEvents(data.events, sport);
     } catch (error) {
         console.error(`ESPN fetch error for ${sport}:`, error.message);
         return [];
