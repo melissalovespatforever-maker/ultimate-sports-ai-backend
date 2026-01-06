@@ -24,7 +24,7 @@ const authenticateToken = async (req, res, next) => {
         
         // Get user from database
         const result = await query(
-            'SELECT id, username, email, subscription_tier, level, coins, xp FROM users WHERE id = $1 AND is_active = true',
+            'SELECT id, username, email, subscription_tier, level, coins, xp, is_admin FROM users WHERE id = $1 AND is_active = true',
             [decoded.userId]
         );
         
@@ -110,8 +110,20 @@ const optionalAuth = async (req, res, next) => {
     }
 };
 
+// Check if user is admin
+const requireAdmin = (req, res, next) => {
+    if (!req.user || !req.user.is_admin) {
+        return res.status(403).json({
+            error: 'Forbidden',
+            message: 'Admin privileges required'
+        });
+    }
+    next();
+};
+
 module.exports = {
     authenticateToken,
     requireSubscription,
+    requireAdmin,
     optionalAuth
 };
