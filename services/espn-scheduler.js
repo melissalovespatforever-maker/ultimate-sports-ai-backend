@@ -1,10 +1,12 @@
 // ============================================
 // ESPN DATA AUTO-REFRESH SCHEDULER
 // Continuously syncs ESPN data every 30 seconds
+// Uses native Node.js fetch (no axios needed)
+// Broadcasts updates via WebSocket
 // ============================================
 
-const axios = require('axios');
 const { pool } = require('../config/database');
+let broadcaster = null;
 
 console.log('📍 Loading ESPN Scheduler...');
 
@@ -24,6 +26,14 @@ let syncStats = {
         soccer: { games: 0, lastSync: null }
     }
 };
+
+/**
+ * Initialize broadcaster (call from server.js)
+ */
+function setBroadcaster(broadcasterInstance) {
+    broadcaster = broadcasterInstance;
+    console.log('📡 ESPN Scheduler connected to WebSocket broadcaster');
+}
 
 /**
  * Start the ESPN scheduler
@@ -46,6 +56,13 @@ async function startESPNScheduler() {
     setInterval(() => {
         performESPNSync();
     }, 30000); // 30 seconds
+
+    // Heartbeat every 60 seconds to keep connections alive
+    setInterval(() => {
+        if (broadcaster) {
+            broadcaster.broadcastHeartbeat(syncStats);
+        }
+    }, 60000); // 60 seconds
 
     console.log('✅ ESPN Scheduler started (30 second interval)');
     return true;
@@ -86,6 +103,16 @@ async function performESPNSync() {
                     games: result.games,
                     lastSync: new Date()
                 };
+
+                // Broadcast score updates for this sport
+                if (broadcaster && result.games > 0) {
+                    try {
+                        const games = await getGamesFromDB(result.sport);
+                        broadcaster.broadcastScoreUpdate(result.sport, games);
+                    } catch (e) {
+                        console.warn(`⚠️  Failed to broadcast ${result.sport}:`, e.message);
+                    }
+                }
             }
         }
 
@@ -93,6 +120,11 @@ async function performESPNSync() {
         syncStats.successfulSyncs++;
         syncStats.gamesUpdated = totalUpdated;
         syncStats.lastSyncStatus = 'Success';
+
+        // Broadcast sync status
+        if (broadcaster) {
+            broadcaster.broadcastSyncStatus(syncStats);
+        }
 
         const syncEndTime = new Date();
         const syncDuration = syncEndTime - syncStartTime;
@@ -109,6 +141,29 @@ async function performESPNSync() {
         syncStats.failedSyncs++;
         syncStats.lastSyncStatus = `Failed: ${error.message}`;
         console.error(`❌ ESPN Sync Error:`, error.message);
+
+        // Broadcast error status
+        if (broadcaster) {
+            broadcaster.broadcastSyncStatus(syncStats);
+        }
+    }
+}
+
+/**
+ * Get games from database for broadcasting
+ */
+async function getGamesFromDB(sport) {
+    try {
+        const result = await pool.query(`
+            SELECT * FROM games 
+            WHERE LOWER(sport) = $1
+            ORDER BY game_time DESC
+            LIMIT 50
+        `, [sport.toLowerCase()]);
+        return result.rows;
+    } catch (error) {
+        console.warn(`Error fetching ${sport} from DB:`, error.message);
+        return [];
     }
 }
 
@@ -127,22 +182,33 @@ async function syncSportData(sport) {
 }
 
 /**
- * Fetch ESPN data for a sport
+ * Fetch ESPN data for a sport using native Node.js fetch
  */
 async function fetchESPNData(sport) {
     const endpoint = getESPNEndpoint(sport);
 
     try {
-        const response = await axios.get(endpoint, {
-            timeout: 8000,
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+
+        const response = await fetch(endpoint, {
+            signal: controller.signal,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
         });
 
-        if (!response.data || !response.data.events) return [];
+        clearTimeout(timeout);
 
-        return parseESPNEvents(response.data.events, sport);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (!data || !data.events) return [];
+
+        return parseESPNEvents(data.events, sport);
     } catch (error) {
         console.warn(`⚠️  ESPN fetch warning for ${sport}:`, error.message);
         return [];
@@ -285,7 +351,8 @@ module.exports = {
     stopESPNScheduler,
     getSchedulerStatus,
     resetStats,
-    performESPNSync
+    performESPNSync,
+    setBroadcaster
 };
 
 console.log('✅ ESPN Scheduler loaded');
