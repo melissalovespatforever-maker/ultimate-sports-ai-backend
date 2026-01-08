@@ -25,6 +25,7 @@ router.get('/', (req, res) => {
 // POST /api/transactions - REQUIRES AUTH
 // Record a coin transaction (win, loss, purchase, etc.)
 router.post('/', authenticateToken, async (req, res, next) => {
+    let client;
     try {
         if (!req.user || !req.user.id) {
             return res.status(401).json({
@@ -50,20 +51,20 @@ router.post('/', authenticateToken, async (req, res, next) => {
 
         const { type, amount, reason, metadata } = value;
 
-        // Start transaction
-        const client = await pool.connect();
+        // Get connection from pool
+        client = await pool.connect();
         
         try {
             await client.query('BEGIN');
 
-            // Get current user balance
+            // Get current user balance with lock
             const userResult = await client.query('SELECT coins FROM users WHERE id = $1 FOR UPDATE', [req.user.id]);
             
             if (userResult.rows.length === 0) {
-                throw new Error('User not found');
+                throw new Error('User not found in database');
             }
 
-            const currentBalance = userResult.rows[0].coins;
+            const currentBalance = parseInt(userResult.rows[0].coins) || 0;
 
             // Calculate new balance based on transaction type
             let newBalance = currentBalance;
@@ -78,7 +79,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
                 
                 // Prevent overdraft
                 if (currentBalance < amount) {
-                    throw new Error(`Insufficient funds: have ${currentBalance}, need ${amount}`);
+                    throw new Error(`Insufficient funds: account has ${currentBalance}, requested ${amount}`);
                 }
             }
 
@@ -95,23 +96,23 @@ router.post('/', authenticateToken, async (req, res, next) => {
             );
 
             // Update game stats if applicable
-            if (metadata.game && (type === 'win' || type === 'loss')) {
+            if (metadata && metadata.game && (type === 'win' || type === 'loss')) {
                 if (type === 'win') {
                     await client.query(
                         `UPDATE users SET 
-                            wins = wins + 1, 
-                            current_streak = current_streak + 1,
-                            best_streak = GREATEST(best_streak, current_streak + 1),
-                            total_picks = total_picks + 1
+                            wins = COALESCE(wins, 0) + 1, 
+                            current_streak = COALESCE(current_streak, 0) + 1,
+                            best_streak = GREATEST(COALESCE(best_streak, 0), COALESCE(current_streak, 0) + 1),
+                            total_picks = COALESCE(total_picks, 0) + 1
                          WHERE id = $1`, 
                         [req.user.id]
                     );
                 } else if (type === 'loss') {
                     await client.query(
                         `UPDATE users SET 
-                            losses = losses + 1, 
+                            losses = COALESCE(losses, 0) + 1, 
                             current_streak = 0,
-                            total_picks = total_picks + 1
+                            total_picks = COALESCE(total_picks, 0) + 1
                          WHERE id = $1`, 
                         [req.user.id]
                     );
@@ -120,7 +121,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
 
             await client.query('COMMIT');
 
-            console.log(`✅ Transaction recorded: ${type} ${balanceChange} coins for user ${req.user.id}`);
+            console.log(`✅ Transaction success: ${type} ${balanceChange} for user ${req.user.id}. New balance: ${newBalance}`);
 
             res.json({
                 success: true,
@@ -135,14 +136,18 @@ router.post('/', authenticateToken, async (req, res, next) => {
             });
 
         } catch (txError) {
-            await client.query('ROLLBACK');
-            throw txError;
+            if (client) await client.query('ROLLBACK');
+            console.error('❌ Transaction logic error:', txError.message);
+            res.status(400).json({
+                error: 'Transaction Failed',
+                message: txError.message
+            });
         } finally {
-            client.release();
+            if (client) client.release();
         }
 
     } catch (error) {
-        console.error('Error recording transaction:', error);
+        console.error('❌ Transaction route error:', error);
         next(error);
     }
 });
