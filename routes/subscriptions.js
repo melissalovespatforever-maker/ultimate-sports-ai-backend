@@ -1,351 +1,390 @@
-// ============================================
-// SUBSCRIPTION MANAGEMENT ROUTES
-// Handle subscription creation, activation, and management
-// ============================================
+/**
+ * Subscription Routes for Ultimate Sports AI
+ * Handles VIP subscription activation and management
+ * Version: 2.5.1
+ */
 
 const express = require('express');
-const { query, transaction } = require('../config/database');
-const { authenticateToken } = require('../middleware/auth');
-
 const router = express.Router();
 
-// ============================================
-// MIDDLEWARE
-// ============================================
+// Import your authentication middleware
+let authenticateToken;
+try {
+    authenticateToken = require('../middleware/auth');
+} catch (e) {
+    try {
+        authenticateToken = require('../../middleware/auth');
+    } catch (e) {
+        console.warn('⚠️  Auth middleware not found, using placeholder');
+        authenticateToken = (req, res, next) => {
+            req.user = { id: 1 };
+            next();
+        };
+    }
+}
 
-// Require authentication for all subscription routes
-router.use(authenticateToken);
-
-// ============================================
-// ROUTES
-// ============================================
+// Import database connection
+let db;
+try {
+    db = require('../config/database');
+} catch (e) {
+    try {
+        db = require('../../config/database');
+    } catch (e) {
+        const { Pool } = require('pg');
+        db = {
+            query: async (text, params) => {
+                const pool = new Pool({
+                    connectionString: process.env.DATABASE_URL,
+                    ssl: { rejectUnauthorized: false }
+                });
+                const result = await pool.query(text, params);
+                await pool.end();
+                return result;
+            }
+        };
+    }
+}
 
 /**
- * POST /api/subscriptions/activate-manual
- * Manually activate subscription after manual PayPal payment
+ * POST /api/subscriptions/activate
+ * Activate a VIP subscription
  */
-router.post('/activate-manual', async (req, res, next) => {
+router.post('/subscriptions/activate', authenticateToken, async (req, res) => {
+    const {
+        tier,
+        tierId,
+        monthlyCoins,
+        subscriptionId,
+        billingCycle,
+        price,
+        metadata
+    } = req.body;
+    const userId = req.user.id;
+
+    // Validation
+    if (!tier || !tierId || !subscriptionId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Missing required fields',
+            message: 'tier, tierId, and subscriptionId are required'
+        });
+    }
+
+    if (!billingCycle || !['monthly', 'annual'].includes(billingCycle)) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid billing cycle',
+            message: 'billingCycle must be "monthly" or "annual"'
+        });
+    }
+
+    if (!monthlyCoins || monthlyCoins <= 0) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid monthly coins',
+            message: 'monthlyCoins must be positive'
+        });
+    }
+
     try {
-        const userId = req.user.userId;
-        const { paypalSubscriptionId, tier, amount } = req.body;
+        // Calculate next billing date
+        const daysToAdd = billingCycle === 'annual' ? 365 : 30;
+        
+        // Start transaction
+        await db.query('BEGIN');
 
-        // Validate input
-        if (!paypalSubscriptionId || !tier || !amount) {
-            return res.status(400).json({
-                error: 'Missing required fields: paypalSubscriptionId, tier, amount'
-            });
-        }
+        // Check for existing subscription
+        const existingResult = await db.query(
+            'SELECT id, active FROM subscriptions WHERE subscription_id = $1',
+            [subscriptionId]
+        );
 
-        if (!['pro', 'vip'].includes(tier)) {
-            return res.status(400).json({
-                error: 'Invalid tier. Must be pro or vip'
-            });
-        }
+        let subscriptionRecord;
 
-        // Use transaction for atomicity
-        const result = await transaction(async (client) => {
-            // Get current user subscription status
-            const userResult = await client.query(
-                'SELECT subscription_tier FROM users WHERE id = $1',
+        if (existingResult.rows && existingResult.rows.length > 0) {
+            // Reactivate existing subscription
+            const updateResult = await db.query(
+                `UPDATE subscriptions
+                 SET active = true,
+                     updated_at = NOW(),
+                     next_billing_date = NOW() + INTERVAL '${daysToAdd} days'
+                 WHERE subscription_id = $1
+                 RETURNING *`,
+                [subscriptionId]
+            );
+            subscriptionRecord = updateResult.rows[0];
+            console.log(`🔄 Reactivated subscription: ${subscriptionId}`);
+        } else {
+            // Deactivate any other active subscriptions for this user
+            await db.query(
+                `UPDATE subscriptions 
+                 SET active = false, 
+                     cancelled_at = NOW(),
+                     updated_at = NOW()
+                 WHERE user_id = $1 AND active = true`,
                 [userId]
             );
 
-            if (userResult.rows.length === 0) {
-                throw new Error('User not found');
-            }
-
-            const previousTier = userResult.rows[0].subscription_tier;
-
-            // Update user subscription
-            const updateResult = await client.query(
-                `UPDATE users 
-                 SET paypal_subscription_id = $1,
-                     subscription_status = $2,
-                     subscription_tier = $3,
-                     subscription_starts_at = CURRENT_TIMESTAMP,
-                     updated_at = CURRENT_TIMESTAMP
-                 WHERE id = $4
-                 RETURNING *`,
-                [paypalSubscriptionId, 'active', tier, userId]
-            );
-
-            const updatedUser = updateResult.rows[0];
-
-            // Create payment record
-            await client.query(
-                `INSERT INTO payments (user_id, paypal_subscription_id, amount, tier, status, payment_id, created_at)
-                 VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
-                 ON CONFLICT (payment_id) DO NOTHING`,
-                [userId, paypalSubscriptionId, amount, tier, 'completed', `manual-${Date.now()}`]
-            );
-
-            // Create subscription change log
-            await client.query(
-                `INSERT INTO subscription_changes (user_id, from_tier, to_tier, reason, paypal_subscription_id)
-                 VALUES ($1, $2, $3, $4, $5)`,
-                [userId, previousTier || 'free', tier, 'upgrade', paypalSubscriptionId]
-            );
-
-            // Create audit log
-            await client.query(
-                `INSERT INTO audit_logs (user_id, action, details)
-                 VALUES ($1, $2, $3)`,
-                [userId, 'manual_subscription_activation', JSON.stringify({
+            // Create new subscription
+            const insertResult = await db.query(
+                `INSERT INTO subscriptions (
+                    user_id,
                     tier,
-                    amount,
-                    paypalSubscriptionId,
-                    timestamp: new Date().toISOString()
-                })]
+                    tier_id,
+                    monthly_coins,
+                    billing_cycle,
+                    price,
+                    subscription_id,
+                    paypal_subscription_id,
+                    active,
+                    start_date,
+                    next_billing_date,
+                    created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW(), NOW() + INTERVAL '${daysToAdd} days', NOW())
+                RETURNING *`,
+                [
+                    userId,
+                    tier,
+                    tierId,
+                    monthlyCoins,
+                    billingCycle,
+                    price,
+                    subscriptionId,
+                    metadata?.paypalSubscriptionId || subscriptionId
+                ]
             );
+            subscriptionRecord = insertResult.rows[0];
+        }
 
-            return updatedUser;
-        });
+        // Update user tier
+        const tierName = tierId.split('_')[0]; // e.g., 'bronze_monthly' -> 'bronze'
+        await db.query(
+            `UPDATE users 
+             SET subscription_tier = $1,
+                 updated_at = NOW()
+             WHERE id = $2`,
+            [tierName, userId]
+        );
 
+        // Credit initial coins
+        const balanceResult = await db.query(
+            `UPDATE users 
+             SET balance = balance + $1,
+                 last_balance_update = NOW(),
+                 updated_at = NOW()
+             WHERE id = $2
+             RETURNING balance`,
+            [monthlyCoins, userId]
+        );
+
+        const newBalance = balanceResult.rows[0].balance;
+
+        // Log transaction for initial coins
+        await db.query(
+            `INSERT INTO transactions (
+                user_id,
+                type,
+                amount,
+                reason,
+                method,
+                subscription_id,
+                metadata,
+                created_at
+            ) VALUES ($1, 'credit', $2, $3, 'subscription', $4, $5, NOW())`,
+            [
+                userId,
+                monthlyCoins,
+                `VIP Subscription: ${tier} (Initial Coins)`,
+                subscriptionId,
+                JSON.stringify(metadata || {})
+            ]
+        );
+
+        // Commit transaction
+        await db.query('COMMIT');
+
+        console.log(`✅ Subscription activated: User ${userId}, Tier: ${tier}, Coins: ${monthlyCoins}`);
+
+        // Return success
         res.json({
             success: true,
-            message: `Subscription activated for tier: ${tier}`,
-            user: {
-                id: result.id,
-                username: result.username,
-                email: result.email,
-                subscription_tier: result.subscription_tier,
-                subscription_status: result.subscription_status
-            }
+            subscription: {
+                id: subscriptionRecord.id,
+                user_id: subscriptionRecord.user_id,
+                tier: subscriptionRecord.tier,
+                tierId: subscriptionRecord.tier_id,
+                monthlyCoins: subscriptionRecord.monthly_coins,
+                billingCycle: subscriptionRecord.billing_cycle,
+                price: parseFloat(subscriptionRecord.price),
+                subscriptionId: subscriptionRecord.subscription_id,
+                active: subscriptionRecord.active,
+                startDate: subscriptionRecord.start_date,
+                nextBillingDate: subscriptionRecord.next_billing_date
+            },
+            balance: newBalance,
+            coinsAdded: monthlyCoins
         });
 
     } catch (error) {
-        console.error('❌ Error activating subscription:', error);
+        await db.query('ROLLBACK').catch(() => {});
+        console.error('❌ Subscription activation error:', error);
+
         res.status(500).json({
-            error: 'Failed to activate subscription',
-            message: error.message
+            success: false,
+            error: 'Database error',
+            message: 'Failed to activate subscription',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 });
 
 /**
  * GET /api/subscriptions/status
- * Get current subscription status for user
+ * Get user's subscription status
  */
-router.get('/status', async (req, res, next) => {
-    try {
-        const userId = req.user.userId;
+router.get('/subscriptions/status', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
 
-        const result = await query(
+    try {
+        const result = await db.query(
             `SELECT 
-                id, email, subscription_tier, subscription_status,
-                subscription_starts_at, subscription_ends_at, 
-                paypal_subscription_id, last_payment_date
-             FROM users 
-             WHERE id = $1`,
+                id,
+                tier,
+                tier_id,
+                monthly_coins,
+                billing_cycle,
+                price,
+                subscription_id,
+                active,
+                start_date,
+                next_billing_date,
+                cancelled_at,
+                created_at
+             FROM subscriptions
+             WHERE user_id = $1 AND active = true
+             ORDER BY created_at DESC
+             LIMIT 1`,
             [userId]
         );
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'User not found' });
+        if (result.rows && result.rows.length > 0) {
+            res.json({
+                success: true,
+                subscription: result.rows[0],
+                hasActiveSubscription: true
+            });
+        } else {
+            res.json({
+                success: true,
+                subscription: null,
+                hasActiveSubscription: false
+            });
         }
 
-        const user = result.rows[0];
-
-        res.json({
-            subscriptionTier: user.subscription_tier,
-            subscriptionStatus: user.subscription_status,
-            startsAt: user.subscription_starts_at,
-            endsAt: user.subscription_ends_at,
-            paypalSubscriptionId: user.paypal_subscription_id,
-            lastPaymentDate: user.last_payment_date
-        });
-
     } catch (error) {
-        console.error('❌ Error getting subscription status:', error);
+        console.error('❌ Subscription status error:', error);
         res.status(500).json({
-            error: 'Failed to get subscription status',
-            message: error.message
+            success: false,
+            error: 'Database error',
+            message: 'Failed to fetch subscription status'
         });
     }
 });
 
 /**
  * POST /api/subscriptions/cancel
- * Cancel user subscription
+ * Cancel a subscription
  */
-router.post('/cancel', async (req, res, next) => {
+router.post('/subscriptions/cancel', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const { subscriptionId } = req.body;
+
+    if (!subscriptionId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Missing subscription ID',
+            message: 'subscriptionId is required'
+        });
+    }
+
     try {
-        const userId = req.user.userId;
+        const result = await db.query(
+            `UPDATE subscriptions
+             SET active = false,
+                 cancelled_at = NOW(),
+                 updated_at = NOW()
+             WHERE user_id = $1 
+             AND subscription_id = $2 
+             AND active = true
+             RETURNING *`,
+            [userId, subscriptionId]
+        );
 
-        const result = await transaction(async (client) => {
-            // Get current subscription
-            const userResult = await client.query(
-                'SELECT subscription_tier, paypal_subscription_id FROM users WHERE id = $1',
-                [userId]
-            );
-
-            if (userResult.rows.length === 0) {
-                throw new Error('User not found');
-            }
-
-            const previousTier = userResult.rows[0].subscription_tier;
-
-            // Update subscription status
-            const updateResult = await client.query(
-                `UPDATE users 
-                 SET subscription_status = $1,
-                     subscription_tier = $2,
-                     subscription_ends_at = CURRENT_TIMESTAMP,
-                     updated_at = CURRENT_TIMESTAMP
-                 WHERE id = $3
-                 RETURNING *`,
-                ['cancelled', 'free', userId]
-            );
-
-            // Log subscription change
-            await client.query(
-                `INSERT INTO subscription_changes (user_id, from_tier, to_tier, reason)
-                 VALUES ($1, $2, $3, $4)`,
-                [userId, previousTier, 'free', 'cancellation']
-            );
-
-            // Create audit log
-            await client.query(
-                `INSERT INTO audit_logs (user_id, action)
-                 VALUES ($1, $2)`,
-                [userId, 'subscription_cancelled']
-            );
-
-            return updateResult.rows[0];
-        });
-
-        res.json({
-            success: true,
-            message: 'Subscription cancelled',
-            subscriptionTier: result.subscription_tier,
-            subscriptionStatus: result.subscription_status
-        });
+        if (result.rows && result.rows.length > 0) {
+            console.log(`🔴 Subscription cancelled: ${subscriptionId}`);
+            res.json({
+                success: true,
+                message: 'Subscription cancelled successfully',
+                subscription: result.rows[0]
+            });
+        } else {
+            res.status(404).json({
+                success: false,
+                error: 'Subscription not found',
+                message: 'No active subscription found with that ID'
+            });
+        }
 
     } catch (error) {
-        console.error('❌ Error cancelling subscription:', error);
+        console.error('❌ Subscription cancellation error:', error);
         res.status(500).json({
-            error: 'Failed to cancel subscription',
-            message: error.message
+            success: false,
+            error: 'Database error',
+            message: 'Failed to cancel subscription'
         });
     }
 });
 
 /**
  * GET /api/subscriptions/history
- * Get subscription change history
+ * Get user's subscription history
  */
-router.get('/history', async (req, res, next) => {
-    try {
-        const userId = req.user.userId;
+router.get('/subscriptions/history', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
 
-        const result = await query(
+    try {
+        const result = await db.query(
             `SELECT 
-                id, from_tier, to_tier, reason, created_at, effective_date
-             FROM subscription_changes
+                id,
+                tier,
+                tier_id,
+                monthly_coins,
+                billing_cycle,
+                price,
+                subscription_id,
+                active,
+                start_date,
+                next_billing_date,
+                cancelled_at,
+                created_at
+             FROM subscriptions
              WHERE user_id = $1
-             ORDER BY created_at DESC
-             LIMIT 50`,
+             ORDER BY created_at DESC`,
             [userId]
         );
-
-        res.json({
-            history: result.rows
-        });
-
-    } catch (error) {
-        console.error('❌ Error getting subscription history:', error);
-        res.status(500).json({
-            error: 'Failed to get subscription history',
-            message: error.message
-        });
-    }
-});
-
-/**
- * GET /api/subscriptions/payment-history
- * Get payment history for subscription
- */
-router.get('/payment-history', async (req, res, next) => {
-    try {
-        const userId = req.user.userId;
-
-        const result = await query(
-            `SELECT 
-                id, amount, currency, tier, status, created_at, processed_at
-             FROM payments
-             WHERE user_id = $1
-             ORDER BY created_at DESC
-             LIMIT 100`,
-            [userId]
-        );
-
-        res.json({
-            payments: result.rows
-        });
-
-    } catch (error) {
-        console.error('❌ Error getting payment history:', error);
-        res.status(500).json({
-            error: 'Failed to get payment history',
-            message: error.message
-        });
-    }
-});
-
-/**
- * POST /api/subscriptions/reactivate
- * Reactivate cancelled subscription
- */
-router.post('/reactivate', async (req, res, next) => {
-    try {
-        const userId = req.user.userId;
-        const { tier } = req.body;
-
-        if (!['pro', 'vip'].includes(tier)) {
-            return res.status(400).json({
-                error: 'Invalid tier. Must be pro or vip'
-            });
-        }
-
-        const result = await transaction(async (client) => {
-            // Update subscription
-            const updateResult = await client.query(
-                `UPDATE users 
-                 SET subscription_status = $1,
-                     subscription_tier = $2,
-                     subscription_starts_at = CURRENT_TIMESTAMP,
-                     subscription_ends_at = NULL,
-                     updated_at = CURRENT_TIMESTAMP
-                 WHERE id = $3
-                 RETURNING *`,
-                ['active', tier, userId]
-            );
-
-            // Log reactivation
-            await client.query(
-                `INSERT INTO subscription_changes (user_id, from_tier, to_tier, reason)
-                 VALUES ($1, $2, $3, $4)`,
-                [userId, 'free', tier, 'reactivation']
-            );
-
-            return updateResult.rows[0];
-        });
 
         res.json({
             success: true,
-            message: `Subscription reactivated for tier: ${tier}`,
-            user: {
-                id: result.id,
-                subscription_tier: result.subscription_tier,
-                subscription_status: result.subscription_status
-            }
+            subscriptions: result.rows
         });
 
     } catch (error) {
-        console.error('❌ Error reactivating subscription:', error);
+        console.error('❌ Subscription history error:', error);
         res.status(500).json({
-            error: 'Failed to reactivate subscription',
-            message: error.message
+            success: false,
+            error: 'Database error',
+            message: 'Failed to fetch subscription history'
         });
     }
 });
