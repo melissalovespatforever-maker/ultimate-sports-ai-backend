@@ -22,11 +22,24 @@ const authenticateToken = async (req, res, next) => {
         // Verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
+        if (!decoded || !decoded.userId) {
+            throw new Error('Invalid token payload');
+        }
+
         // Get user from database
-        const result = await query(
-            'SELECT id, username, email, subscription_tier, level, coins, xp, is_admin FROM users WHERE id = $1 AND is_active = true',
-            [decoded.userId]
-        );
+        let result;
+        try {
+            result = await query(
+                'SELECT id, username, email, subscription_tier, level, coins, xp, is_admin FROM users WHERE id = $1 AND is_active = true',
+                [decoded.userId]
+            );
+        } catch (dbError) {
+            console.error('Auth DB error:', dbError.message);
+            return res.status(503).json({
+                error: 'Service Unavailable',
+                message: 'Database connection failed during authentication'
+            });
+        }
         
         if (result.rows.length === 0) {
             return res.status(401).json({
