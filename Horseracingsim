@@ -1,0 +1,78 @@
+import java.util.*;
+
+public class HorseRaceController {
+
+    // Define the Horse class
+    public static class Horse {
+        String name;
+        double speed, stamina, agility;
+        double position;
+        boolean finished;
+
+        public Horse(String name, double speed, double stamina, double agility) {
+            this.name = name;
+            this.speed = speed;
+            this.stamina = stamina;
+            this.agility = agility;
+            this.position = 0;
+            this.finished = false;
+        }
+
+        // Simulate running
+        public void run() {
+            if (!finished) {
+                double runFactor = Math.random() * speed;
+                position += runFactor;
+
+                // Stamina logic
+                stamina -= 0.05;
+                if (stamina <= 0) runFactor *= 0.7;
+
+                if (position >= 100) {
+                    position = 100;
+                    finished = true;
+                }
+            }
+        }
+    }
+
+    public static class Race {
+        List<Horse> horses;
+
+        public Race(List<Horse> horses) {
+            this.horses = horses;
+        }
+
+        // Simulate the race
+        public List<String> simulate() {
+            List<String> raceResults = new ArrayList<>();
+            while (horses.stream().anyMatch(horse -> !horse.finished)) {
+                for (Horse horse : horses) {
+                    horse.run();
+                    raceResults.add(horse.name + " position: " + horse.position);
+                }
+            }
+
+            Horse winner = horses.stream().min(Comparator.comparingDouble(h -> h.position)).get();
+            raceResults.add("Winner: " + winner.name);
+            return raceResults;
+        }
+    }
+
+    public static void main(String[] args) {
+        // Example usage
+        List<Horse> horses = Arrays.asList(
+            new Horse("Thunder", 15, 1.0, 10),
+            new Horse("Blaze", 14, 1.1, 12),
+            new Horse("Storm", 16, 0.9, 8),
+            new Horse("Lightning", 13, 1.2, 11)
+        );
+
+        Race race = new Race(horses);
+        List<String> raceResults = race.simulate();
+
+        for (String result : raceResults) {
+            System.out.println(result);
+        }
+    }
+}
