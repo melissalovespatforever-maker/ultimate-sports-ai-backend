@@ -64,7 +64,7 @@ public class HorseRaceController {
         List<Horse> horses = Arrays.asList(
             new Horse("Thunder", 15, 1.0, 10),
             new Horse("Blaze", 14, 1.1, 12),
-            new Horse("Storm", 16, 0.9, 8),
+            new Horse("pete", 16, 0.9, 8),
             new Horse("Lightning", 13, 1.2, 11)
         );
 
